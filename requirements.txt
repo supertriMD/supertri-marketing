@@ -1,0 +1,13 @@
+# Runtime deps for the live dashboard (supertri_registration_tracker/app.py) on Streamlit Community Cloud.
+# The deployed app reads BigQuery only (USE_LIVE=True) — it does NOT need the trackers,
+# the loader, or the local weekly-cycle scripts. Pinned to the versions proven locally.
+streamlit==1.59.1
+plotly==6.9.0
+pandas==3.0.3
+numpy==2.5.1
+google-cloud-bigquery==3.42.1
+google-cloud-bigquery-storage==2.39.0
+db-dtypes==1.7.0
+google-auth==2.55.1
+pyarrow==24.0.0
+openpyxl==3.1.5

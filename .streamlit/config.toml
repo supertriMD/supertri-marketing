@@ -1,0 +1,11 @@
+# Pins the deployed app to a LIGHT theme. The dashboard's CSS (theme.py) assumes a
+# white background with dark ink text; without this, Streamlit Cloud may render in dark
+# base, giving light text on the forced-white background ("nothing readable").
+# Colours mirror theme.py (INK / ACCENT / sidebar).
+[theme]
+base = "light"
+primaryColor = "#fff400"           # Supertri Yellow — interactive accents (links forced to ink in CSS)
+backgroundColor = "#ffffff"
+secondaryBackgroundColor = "#f4f4f4"  # Off White — sidebar / secondary surfaces
+textColor = "#1c1c1c"              # Off Black
+font = "sans serif"

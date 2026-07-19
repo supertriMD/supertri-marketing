@@ -1,0 +1,7 @@
+# NEVER commit real secrets — the service-account key + password live in Streamlit Cloud secrets only.
+.streamlit/secrets.toml
+*.json
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
