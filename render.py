@@ -163,10 +163,10 @@ table.avf .grp .ih,table.avf .sub th:first-child,table.avf tbody td:first-child{
 
 _AVF_THEAD = ('<thead><tr class="grp"><th class="ih" colspan="4">Edition</th>'
               '<th class="eolmh" colspan="3">EOLM</th><th class="curh" colspan="3">Current</th>'
-              '<th class="eotmh" colspan="3">EOTM</th><th class="lyh">Last&nbsp;yr</th><th>Trend</th></tr>'
+              '<th class="eotmh" colspan="3">EOTM</th><th class="lyh">Last&nbsp;yr</th><th title="Registration momentum — the last 3 weeks vs the prior 3 weeks: (3wk − prior 3wk) ÷ prior 3wk. ▲ rising (>+5%) · ▼ softening (<−5%) · ▬ flat. Not a single week-over-week; passed / not-yet-open editions show none.">Trend</th></tr>'
               '<tr class="sub"><th>Event</th><th>Race&nbsp;day</th><th>Wks</th><th>Target</th>'
               '<th>Forecast</th><th>Actual</th><th>%</th><th>Forecast</th><th>Actual</th><th>GAP</th>'
-              '<th>Forecast</th><th>Actual</th><th>%</th><th>This&nbsp;mo</th><th>Trend</th></tr></thead>')
+              '<th>Forecast</th><th>Actual</th><th>%</th><th>This&nbsp;mo</th><th title="Registration momentum — the last 3 weeks vs the prior 3 weeks: (3wk − prior 3wk) ÷ prior 3wk. ▲ rising (>+5%) · ▼ softening (<−5%) · ▬ flat. Not a single week-over-week; passed / not-yet-open editions show none.">Trend</th></tr></thead>')
 
 
 def avf_reg_table(df, meta, prior_map=None):
