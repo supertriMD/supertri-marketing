@@ -102,7 +102,7 @@ if "Registrations vs plan" in sec:
 
     st.caption("One season at a time. **EOLM** = end of last closed month · **Current** = this month "
                "(Forecast = full month, Actual = to-date, GAP = Actual − Forecast) · **EOTM** = end of "
-               "this month · **%** = Actual ÷ Forecast · **Wks** = weeks to race. Passed editions show "
+               "this month · **%** = Actual ÷ Forecast · **Wks** = weeks to race. Completed editions show "
                "only Race day, Target and EOTM Actual.")
 
     def block(season):
@@ -127,7 +127,7 @@ if "Registrations vs plan" in sec:
     block(md.LIVE_CYCLE)
     st.caption("Forecast = the modelled registration plan. GAP is neutral — mid-month it is naturally "
                "negative (the month's remaining sell). Trend = registration momentum (this 3 weeks vs the "
-               "prior 3) with the WoW %; ▲ rising · ▼ softening · ▬ flat. Passed editions show no trend.")
+               "prior 3) with the WoW %; ▲ rising · ▼ softening · ▬ flat. Completed editions show no trend.")
 
 # ═════════════════════════════════════════════════════ 2. PARTICIPANT PROFILE
 elif "Participant profile" in sec:

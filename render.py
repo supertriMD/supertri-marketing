@@ -163,16 +163,16 @@ table.avf .grp .ih,table.avf .sub th:first-child,table.avf tbody td:first-child{
 
 _AVF_THEAD = ('<thead><tr class="grp"><th class="ih" colspan="4">Edition</th>'
               '<th class="eolmh" colspan="3">EOLM</th><th class="curh" colspan="3">Current</th>'
-              '<th class="eotmh" colspan="3">EOTM</th><th class="lyh">Last&nbsp;yr</th><th title="Registration momentum — the last 3 weeks vs the prior 3 weeks: (3wk − prior 3wk) ÷ prior 3wk. ▲ rising (>+5%) · ▼ softening (<−5%) · ▬ flat. Not a single week-over-week; passed / not-yet-open editions show none.">Trend</th></tr>'
+              '<th class="eotmh" colspan="3">EOTM</th><th class="lyh">Last&nbsp;yr</th><th title="Registration momentum — the last 3 weeks vs the prior 3 weeks: (3wk − prior 3wk) ÷ prior 3wk. ▲ rising (>+5%) · ▼ softening (<−5%) · ▬ flat. Not a single week-over-week; completed / not-yet-open editions show none.">Trend</th></tr>'
               '<tr class="sub"><th>Event</th><th>Race&nbsp;day</th><th>Wks</th><th>Target</th>'
               '<th>Forecast</th><th>Actual</th><th>%</th><th>Forecast</th><th>Actual</th><th>GAP</th>'
-              '<th>Forecast</th><th>Actual</th><th>%</th><th>This&nbsp;mo</th><th title="Registration momentum — the last 3 weeks vs the prior 3 weeks: (3wk − prior 3wk) ÷ prior 3wk. ▲ rising (>+5%) · ▼ softening (<−5%) · ▬ flat. Not a single week-over-week; passed / not-yet-open editions show none.">Trend</th></tr></thead>')
+              '<th>Forecast</th><th>Actual</th><th>%</th><th>This&nbsp;mo</th><th title="Registration momentum — the last 3 weeks vs the prior 3 weeks: (3wk − prior 3wk) ÷ prior 3wk. ▲ rising (>+5%) · ▼ softening (<−5%) · ▬ flat. Not a single week-over-week; completed / not-yet-open editions show none.">Trend</th></tr></thead>')
 
 
 def avf_reg_table(df, meta, prior_map=None):
     """Registrations Actuals-vs-Forecast grid in the original tracker format: WKS · EOLM (Forecast/
     Actual/%) · Current (Forecast/Actual/GAP, derived EOTM−EOLM) · EOTM (Forecast/Actual/%) · Last-yr
-    this-month (from prior_map = {event → last-year this-month regs}) · Trend. Reg-only. Passed editions
+    this-month (from prior_map = {event → last-year this-month regs}) · Trend. Reg-only. Completed editions
     collapse to Race day + Target + EOTM Actual; PORTFOLIO is the total."""
     prior_map = prior_map or {}
     rows = []
@@ -184,7 +184,7 @@ def avf_reg_table(df, meta, prior_map=None):
         race_s = "—" if is_port else ((data.AS_OF + pd.to_timedelta(dtr, unit="D")).strftime("%-d %b")
                                       if pd.notna(dtr) else "—")
         opens_s = (pd.to_datetime(opn_).strftime("%-d %b") if opn_ is not None and pd.notna(opn_) else None)
-        wks_s = ("—" if is_port else '<span class="wpass">passed</span>' if passed
+        wks_s = ("—" if is_port else '<span class="wpass">completed</span>' if passed
                  else f'<span class="wfut">opens {opens_s}</span>' if future and opens_s
                  else '<span class="wfut">not open</span>' if future
                  else (f"{dtr/7:.1f}" if pd.notna(dtr) else "—"))
