@@ -39,7 +39,8 @@ def year_book_reg(year: int) -> pd.DataFrame:
     status, days-to-race, reg target, reg to-date, % of target, projected landing. NO revenue.
     reg_act = COALESCE(ACTIVE reg-date actuals, ledger COUNT for LDT editions) in the view, so Blenheim
     2026 matches the board (5,631) — no app-side fallback needed."""
-    df = D._q(f"""SELECT event_code, CAST(race_date AS DATE) AS race_date,
+    df = D._q(f"""SELECT event_code, CAST(race_date AS DATE) AS race_date, sell_state,
+                    CAST(opens AS DATE) AS opens,
                     CAST(reg_target AS FLOAT64) AS reg_target,
                     CAST(reg_act AS FLOAT64) AS reg_act,
                     CAST(reg_landing_fcst AS FLOAT64) AS landing_reg
@@ -49,12 +50,17 @@ def year_book_reg(year: int) -> pd.DataFrame:
     df["event"] = df.event_code.map(CODE_DISP)
     df["ccy"] = df.event.map(CCY)
     df["edition_year"] = year
-    df["status"] = np.where(pd.to_datetime(df.race_date) < AS_OF, "completed", "selling")
+    # passed/selling from the date-driven rule (v_reg_year_book.sell_state ← v_edition_sell_state);
+    # fall back to race_date<AS_OF if a row lacks it. 'future' folds into 'selling' (2-state display),
+    # mirroring the board — LB/NJ flip to passed on the real calendar, no reporting_week nudge.
+    _passed = np.where(df.sell_state.notna(), df.sell_state.eq("passed"),
+                       pd.to_datetime(df.race_date) < AS_OF)
+    df["status"] = np.where(_passed, "completed", "selling")
     df["days_to_race"] = (pd.to_datetime(df.race_date) - AS_OF).dt.days
     df["reg_pct"] = df.reg_act / df.reg_target
     df["landing_reg"] = np.maximum(pd.to_numeric(df.landing_reg, errors="coerce").fillna(df.reg_act),
                                    df.reg_act.fillna(0))
-    return D._order_events(df[["event", "event_code", "edition_year", "race_date", "status",
+    return D._order_events(df[["event", "event_code", "edition_year", "race_date", "status", "sell_state", "opens",
                                "days_to_race", "reg_act", "reg_target", "reg_pct", "landing_reg", "ccy"]])
 
 
@@ -123,7 +129,8 @@ def weekly_reg(season: int):
                    reg_trend, CAST(reg_wow_pct AS FLOAT64) AS reg_wow_pct
                  FROM `$P.supertri_marketing.v_reg_pacing` WHERE edition_year={season}""")
     yb = year_book_reg(season)
-    meta = {r.event: (r.status, r.days_to_race) for r in yb.itertuples()}
+    # meta carries sell_state + opens for the future/not-yet-open display ("OPENS <date>"), from v_reg_year_book.
+    meta = {r.event: (r.status, r.days_to_race, r.sell_state, r.opens) for r in yb.itertuples()}
     if not len(p):
         return pd.DataFrame(columns=["event", "total_target", "eolm_fcst", "eolm_act",
                                      "eotm_fcst", "eotm_act", "trend", "wow_pct"]), meta
@@ -146,26 +153,6 @@ def weekly_reg(season: int):
     for c in ("total_target", "eolm_fcst", "eolm_act", "eotm_fcst", "eotm_act"):
         port[c] = pd.to_numeric(reg[c], errors="coerce").sum(min_count=1)
     return pd.concat([reg, pd.DataFrame([port])], ignore_index=True), meta
-
-
-# ── Registration ramp (per event: plan vs last year vs actual) ──
-def ramp_trajectory():
-    """Per-event registration ramp from the revenue-free supertri_marketing.v_ramp_trajectory: one series
-    per event's current live edition — prior_cum (last year at same mtr) / plan_cum (v3 plan) / act_cum
-    (this edition's actuals). NO revenue."""
-    cols = ["event", "event_code", "mtr", "calendar_month", "prior_cum", "plan_cum", "act_cum"]
-    try:
-        df = D._q("""SELECT event_code, mtr, CAST(calendar_month AS DATE) AS calendar_month,
-                       prior_cum, plan_cum, act_cum
-                     FROM `$P.supertri_marketing.v_ramp_trajectory`""")
-    except Exception:
-        return pd.DataFrame(columns=cols)
-    if not len(df):
-        return pd.DataFrame(columns=cols)
-    df["event"] = df.event_code.map(CODE_DISP)
-    for c in ("mtr", "prior_cum", "plan_cum", "act_cum"):
-        df[c] = pd.to_numeric(df[c], errors="coerce")
-    return df[cols]
 
 
 # ── Participant profile (gender / age) ──

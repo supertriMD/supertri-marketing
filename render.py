@@ -155,6 +155,8 @@ table.avf td.eotmc{{background:rgba(201,162,39,.06)}}
 table.avf td.num{{font-weight:700;color:{theme.INK}}}
 table.avf .g{{color:{theme.GREEN};font-weight:700}}table.avf .r{{color:{theme.RED};font-weight:700}}table.avf .m{{color:{theme.MUTED}}}
 table.avf .wpass{{font-weight:700;color:{theme.AMBER};text-transform:uppercase;font-size:10px;letter-spacing:.05em}}
+table.avf .wfut{{font-weight:700;color:{theme.ACCENT2};text-transform:uppercase;font-size:10px;letter-spacing:.05em}}
+table.avf tr.future td{{color:{theme.MUTED};background:rgba(31,182,193,.045)}}
 table.avf tr.tot td{{border-top:2px solid {theme.HAIRLINE};font-weight:800;background:rgba(255,244,0,.08)}}
 table.avf .grp .ih,table.avf .sub th:first-child,table.avf tbody td:first-child{{border-left:2px solid {theme.MUTED}}}
 </style>"""
@@ -176,19 +178,24 @@ def avf_reg_table(df, meta, prior_map=None):
     rows = []
     for r in df.itertuples():
         is_port = str(r.event).upper().startswith("PORTFOLIO")
-        st_, dtr = meta.get(r.event, ("selling", float("nan")))
+        st_, dtr, ss_, opn_ = meta.get(r.event, ("selling", float("nan"), "selling", None))
         passed = (not is_port) and st_ == "completed"
+        future = (not is_port) and ss_ == "future"          # not-yet-open edition (opens 2d before prior race)
         race_s = "—" if is_port else ((data.AS_OF + pd.to_timedelta(dtr, unit="D")).strftime("%-d %b")
                                       if pd.notna(dtr) else "—")
-        wks_s = "—" if is_port else ('<span class="wpass">passed</span>' if passed
-                                     else (f"{dtr/7:.1f}" if pd.notna(dtr) else "—"))
+        opens_s = (pd.to_datetime(opn_).strftime("%-d %b") if opn_ is not None and pd.notna(opn_) else None)
+        wks_s = ("—" if is_port else '<span class="wpass">passed</span>' if passed
+                 else f'<span class="wfut">opens {opens_s}</span>' if future and opens_s
+                 else '<span class="wfut">not open</span>' if future
+                 else (f"{dtr/7:.1f}" if pd.notna(dtr) else "—"))
         ef, ea, tf, ta = r.eolm_fcst, r.eolm_act, r.eotm_fcst, r.eotm_act
-        trend_td = ('<td class="m">—</td>' if (passed or is_port)
+        trend_td = ('<td class="m">—</td>' if (passed or future or is_port)
                     else f'<td>{_trend_html(getattr(r, "trend", None), getattr(r, "wow_pct", float("nan")))}</td>')
-        if passed:
+        if passed or future:      # passed shows EOTM actual; future shows nothing (not selling yet)
+            _eotm = _f_int(ta) if passed else "—"
             block = ('<td class="eolmc">—</td><td class="eolmc">—</td><td class="eolmc">—</td>'
                      '<td class="curc">—</td><td class="curc">—</td><td class="curc">—</td>'
-                     f'<td class="eotmc">—</td><td class="eotmc num">{_f_int(ta)}</td><td class="eotmc">—</td>')
+                     f'<td class="eotmc">—</td><td class="eotmc num">{_eotm}</td><td class="eotmc">—</td>')
         else:
             mf, ma = (tf - ef), (ta - ea)
             gap = ma - mf
@@ -198,8 +205,8 @@ def avf_reg_table(df, meta, prior_map=None):
                      f'<td class="curc">{_f_int(mf)}</td><td class="curc">{_f_int(ma)}</td><td class="curc m">{gap_s}</td>'
                      f'<td class="eotmc">{_f_int(tf)}</td><td class="eotmc num">{_f_int(ta)}</td><td class="eotmc {tc}">{ts}</td>')
         _ly = prior_map.get(r.event)
-        lastyr_td = f'<td class="lyc">{_f_int(_ly) if (_isnum(_ly) and _ly > 0) else "—"}</td>'
-        tr_cls = ' class="tot"' if is_port else ''
+        lastyr_td = f'<td class="lyc">{_f_int(_ly) if (not future and _isnum(_ly) and _ly > 0) else "—"}</td>'
+        tr_cls = ' class="tot"' if is_port else (' class="future"' if future else '')
         rows.append(f'<tr{tr_cls}><td class="intro ev">{r.event}</td><td class="intro">{race_s}</td>'
                     f'<td class="intro">{wks_s}</td><td class="intro">{_f_int(getattr(r, "total_target"))}</td>'
                     f'{block}{lastyr_td}{trend_td}</tr>')
@@ -243,111 +250,3 @@ def _isnum(v):
     return isinstance(v, (int, float, np.integer, np.floating)) and not (isinstance(v, float) and pd.isna(v))
 
 
-RAMP_COLORS = {"Last year": "#cfcfcf", "Plan": theme.GOLD, "Actual": theme.INK}   # faint / medium / bright
-RAMP_STYLE = {"Last year": (1.6, "dot", 4), "Plan": (2.6, "solid", 5), "Actual": (4.2, "solid", 8)}
-
-
-def ramp_event_chart(edf, as_of, key, ytitle="Cumulative registrations"):
-    """Single-event ramp: last year (faint grey, dotted) · plan (gold, medium) · actual (ink, bright/thick)."""
-    t = edf.copy()
-    t["calendar_month"] = pd.to_datetime(t.calendar_month)
-    cur = pd.Timestamp(as_of).to_period("M").to_timestamp()
-    t["act_cum"] = t.act_cum.where(t.calendar_month <= cur)
-    has_prior = pd.to_numeric(t.prior_cum, errors="coerce").fillna(0).abs().sum() > 0
-    vals = (["prior_cum"] if has_prior else []) + ["plan_cum", "act_cum"]
-    long = t.melt(id_vars=["calendar_month"], value_vars=vals, var_name="series", value_name="v")
-    long["series"] = long.series.map({"prior_cum": "Last year", "plan_cum": "Plan", "act_cum": "Actual"})
-    fig = px.line(long, x="calendar_month", y="v", color="series", markers=True,
-                  category_orders={"series": ["Last year", "Plan", "Actual"]}, color_discrete_map=RAMP_COLORS)
-    for tr in fig.data:
-        w, d, ms = RAMP_STYLE.get(tr.name, (2, "solid", 5))
-        tr.line.width = w; tr.line.dash = d; tr.marker.size = ms
-    fig.update_traces(connectgaps=False)
-    fig.update_layout(height=250, legend_title=None, xaxis_title=None, yaxis_title=ytitle,
-                      margin=dict(l=6, r=6, t=28, b=6),
-                      legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0))
-    st.plotly_chart(fig, use_container_width=True, key=key)
-
-
-def ramp_status(edf, as_of):
-    """Status + action + EOLM absolutes for one event, evaluated at EOLM (end of last closed month). Returns
-    a dict: label, color, action, vs_plan, vs_last, ly, plan, act. Registrations-only for the marketing app."""
-    t = edf.copy()
-    t["calendar_month"] = pd.to_datetime(t.calendar_month)
-    eolm = (pd.Timestamp(as_of).to_period("M") - 1).to_timestamp()
-    at = t[t.calendar_month <= eolm].sort_values("calendar_month")
-    if not len(at):
-        if len(t):     # trajectory starts after EOLM → cycle opened THIS month
-            return dict(label="Launch phase", color=theme.ACCENT2, vs_plan=np.nan, vs_last=np.nan,
-                        ly=np.nan, plan=np.nan, act=np.nan,
-                        action="Cycle opened this month — no end-of-last-month registrations yet; drive launch "
-                               "awareness + early-bird and track the ramp.")
-        return dict(label="Not selling", color=theme.MUTED, action="No live selling cycle for this event.",
-                    vs_plan=np.nan, vs_last=np.nan, ly=np.nan, plan=np.nan, act=np.nan)
-    r = at.iloc[-1]
-    a, p, pr, mtr = r.act_cum, r.plan_cum, r.prior_cum, r.mtr
-    vs_plan = (a / p) if (_isnum(p) and p > 0) else np.nan
-    vs_last = (a / pr) if (_isnum(pr) and pr > 0) else np.nan
-    ly = ("" if pd.isna(vs_last) else
-          (f" · ahead of last year (+{vs_last-1:.0%})" if vs_last >= 1 else f" · behind last year ({vs_last-1:.0%})"))
-    base = dict(vs_plan=vs_plan, vs_last=vs_last, ly=pr, plan=p, act=a)
-    if _isnum(mtr) and mtr >= 9 and (pd.isna(vs_plan) or vs_plan < 0.10):
-        return dict(label="Launch phase", color=theme.ACCENT2, **base,
-                    action="Presale just opened — drive launch awareness + early-bird; too early for a plan or "
-                           "prior-year read, so track the ramp, not the level.")
-    if pd.isna(vs_plan):
-        return dict(label="Early", color=theme.MUTED, **base,
-                    action="Too early to read against plan — keep the launch cadence.")
-    if vs_plan >= 1.05:
-        return dict(label="Ahead", color=theme.GREEN, **base,
-                    action=f"Ahead of plan (+{vs_plan-1:.0%}){ly}. Sustain demand; ease discounting and protect "
-                           f"yield.")
-    if vs_plan >= 0.95:
-        return dict(label="On track", color=theme.AMBER, **base,
-                    action=f"On plan ({vs_plan-1:+.0%}){ly}. Hold the cadence; line up the next price-tier step "
-                           f"and a mid-cycle nudge.")
-    return dict(label="Behind", color=theme.RED, **base,
-                action=f"Behind plan ({vs_plan-1:.0%}){ly}. Accelerate now: paid push + email re-engagement of "
-                       f"last year's field; consider an early-bird extension before the next tier.")
-
-
-def ramp_panel(s):
-    """EOLM absolutes panel (Actual bright · Plan medium · Last year faint) + vs% + action. Registrations."""
-    st.markdown(
-        f'<div style="font-size:.7rem;text-transform:uppercase;letter-spacing:.04em;color:{theme.MUTED};'
-        f'font-weight:700;margin-bottom:3px">EOLM · registrations</div>'
-        f'<div style="font-variant-numeric:tabular-nums;line-height:1.5">'
-        f'<div><span style="display:inline-block;width:74px;color:{theme.INK};font-weight:700">Actual</span>'
-        f'<b style="font-size:1.1rem;color:{theme.INK}">{_f_int(s["act"])}</b></div>'
-        f'<div><span style="display:inline-block;width:74px;color:{theme.GOLD};font-weight:700">Plan</span>'
-        f'<span style="font-weight:700;color:{theme.INK}">{_f_int(s["plan"])}</span></div>'
-        f'<div><span style="display:inline-block;width:74px;color:#b9b9b9;font-weight:600">Last year</span>'
-        f'<span style="color:{theme.MUTED}">{_f_int(s["ly"])}</span></div></div>'
-        f'<div style="margin-top:4px;font-size:.8rem;color:{theme.MUTED}">vs plan '
-        f'<b>{"—" if pd.isna(s["vs_plan"]) else f"{s["vs_plan"]-1:+.0%}"}</b> · vs last year '
-        f'<b>{"—" if pd.isna(s["vs_last"]) else f"{s["vs_last"]-1:+.0%}"}</b></div>', unsafe_allow_html=True)
-    insight(f"<b>Action —</b> {s['action']}",
-            "good" if s["label"] == "Ahead" else ("warn" if s["label"] in ("Behind", "On track") else ""))
-
-
-def render_ramp_tab(traj, as_of):
-    """Per-event registration ramp tab body for the marketing app: badge + chart + EOLM panel + action."""
-    if not len(traj):
-        st.info("No ramp data available yet."); return
-    ev_order = data._order_events(pd.DataFrame({"event": traj.event.unique()})).event.tolist()
-    for i, ev in enumerate(ev_order):
-        edf = traj[traj.event == ev].sort_values("mtr", ascending=False)
-        if not len(edf):
-            continue
-        s = ramp_status(edf, as_of)
-        st.markdown(
-            f'<div style="display:flex;align-items:center;gap:10px;margin:16px 0 2px">'
-            f'<span style="font-weight:800;font-size:1.05rem;color:{theme.INK}">{ev}</span>'
-            f'<span style="background:{s["color"]};color:#fff;font-weight:700;font-size:.72rem;'
-            f'padding:2px 10px;border-radius:12px;text-transform:uppercase;letter-spacing:.04em">{s["label"]}</span>'
-            f'</div>', unsafe_allow_html=True)
-        c1, c2 = st.columns([3, 2])
-        with c1:
-            ramp_event_chart(edf, as_of, key=f"mkt_ramp_{i}")
-        with c2:
-            ramp_panel(s)

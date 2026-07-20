@@ -72,7 +72,6 @@ _password_gate()
 st.sidebar.caption("Registration insights · **marketing view**")
 SECTIONS = [
     "1 · Registrations vs plan (by season)",
-    "◆ Registration ramps (plan vs last year)",
     "2 · Participant profile",
     "3 · Athlete mix (journey / goal)",
     "4 · Event format mix",
@@ -112,11 +111,13 @@ if "Registrations vs plan" in sec:
         st.markdown(f"## {season} season")
         if not len(yb):
             st.info("No editions for this season yet."); return
-        sell = int((yb.status == "selling").sum()); done = int((yb.status == "completed").sum())
+        sell = int((yb.sell_state == "selling").sum()); done = int((yb.sell_state == "passed").sum())
+        future_n = int((yb.sell_state == "future").sum())
         tot_t = pd.to_numeric(yb.reg_target, errors="coerce").sum()
         tot_a = pd.to_numeric(yb.reg_act, errors="coerce").sum()
         k = st.columns(3)
-        k[0].metric("Events selling", f"{sell} / {len(yb)}", f"{done} completed", delta_color="off")
+        k[0].metric("Events selling", f"{sell} / {len(yb)}",
+                    f"{done} completed" + (f" · {future_n} not yet open" if future_n else ""), delta_color="off")
         k[1].metric("Registrations to date", f"{tot_a:,.0f}")
         k[2].metric("% of season target", f"{100*tot_a/tot_t:.0f}%" if tot_t else "—")
         R.avf_reg_table(reg, meta, md.prior_year_thismonth(season))
@@ -127,15 +128,6 @@ if "Registrations vs plan" in sec:
     st.caption("Forecast = the modelled registration plan. GAP is neutral — mid-month it is naturally "
                "negative (the month's remaining sell). Trend = registration momentum (this 3 weeks vs the "
                "prior 3) with the WoW %; ▲ rising · ▼ softening · ▬ flat. Passed editions show no trend.")
-
-# ═════════════════════════════════════════════════════ REGISTRATION RAMPS
-elif "Registration ramps" in sec:
-    st.header("Registration ramps — plan vs last year")
-    st.caption("**Registrations.** For each event's live selling cycle: cumulative **registrations** over the "
-               "selling calendar — **Last year** (faint dotted grey) · **Plan** (gold) · **Actual so far** "
-               "(bright black, to date). The **EOLM** panel gives the absolute registration counts for all three "
-               "at end of last closed month; the action is derived from Actual vs Plan and vs Last year at EOLM.")
-    R.render_ramp_tab(md.ramp_trajectory(), data.AS_OF)
 
 # ═════════════════════════════════════════════════════ 2. PARTICIPANT PROFILE
 elif "Participant profile" in sec:
