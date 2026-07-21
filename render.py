@@ -51,6 +51,45 @@ _f_pct = lambda v: "—" if pd.isna(v) else f"{v:+.0%}"
 _f_pct0 = lambda v: "—" if pd.isna(v) else f"{v:.0%}"
 
 
+def kpi(label, val, delta="", sub=""):
+    """Yellow-accent KPI card (board parity). Delta coloured by its leading +/− sign, else muted."""
+    dcol = theme.GREEN if (isinstance(delta, str) and delta.startswith("+")) else (
+        theme.RED if (isinstance(delta, str) and delta.startswith("-")) else theme.MUTED)
+    _dlt = f'<div class="dlt" style="color:{dcol}">{delta}</div>' if delta else ''
+    _sub = f'<div class="sub">{sub}</div>' if sub else ''
+    return (f'<div class="kpi"><div class="lab">{label}</div>'
+            f'<div class="val">{val}</div>{_dlt}{_sub}</div>')
+
+
+def cards_row(cards):
+    """Render a list of kpi() HTML cards across equal columns."""
+    for c, h in zip(st.columns(len(cards)), cards):
+        c.markdown(h, unsafe_allow_html=True)
+    st.write("")
+
+
+def softpill(p):
+    """Attainment % (act/target) as a soft-tinted pill: green ≥95% · amber ≥85% · red below · '—' if N/A."""
+    if p is None or pd.isna(p):
+        return "—"
+    cls = "sg" if p >= 0.95 else ("sa" if p >= 0.85 else "sr")
+    return f'<span class="spill {cls}">{p:.0%}</span>'
+
+
+def growthpill(d):
+    """Signed growth Δ% as a soft-tinted pill: green ≥+5% · red ≤−5% · muted flat between · '—' if N/A."""
+    if d is None or pd.isna(d):
+        return "—"
+    cls = "sg" if d >= 0.05 else ("sr" if d <= -0.05 else "sm")
+    return f'<span class="spill {cls}">{d:+.0%}</span>'
+
+
+def season_title(text, sub=""):
+    """Year-book season heading — bold headline + a quiet muted subtitle (board parity)."""
+    _s = f' <span class="ssub">· {sub}</span>' if sub else ''
+    st.markdown(f'<div class="seasonttl">{text}{_s}</div>', unsafe_allow_html=True)
+
+
 def stacked_100_by_year(df, title, colors=None, order=None, years=RECENT):
     """100% horizontal stacked bar, one row per recent year, coloured by `answer`. df: [year, answer, n].
     Every year in `years` is forced to render (empty = not-yet-collected) so bar thickness is constant;
@@ -161,57 +200,90 @@ table.avf tr.tot td{{border-top:2px solid {theme.HAIRLINE};font-weight:800;backg
 table.avf .grp .ih,table.avf .sub th:first-child,table.avf tbody td:first-child{{border-left:2px solid {theme.MUTED}}}
 </style>"""
 
-_AVF_THEAD = ('<thead><tr class="grp"><th class="ih" colspan="4">Edition</th>'
-              '<th class="eolmh" colspan="3">EOLM</th><th class="curh" colspan="3">Current</th>'
-              '<th class="eotmh" colspan="3">EOTM</th><th class="lyh">Last&nbsp;yr</th><th title="Registration momentum — the last 3 weeks vs the prior 3 weeks: (3wk − prior 3wk) ÷ prior 3wk. ▲ rising (>+5%) · ▼ softening (<−5%) · ▬ flat. Not a single week-over-week; completed / not-yet-open editions show none.">Trend</th></tr>'
-              '<tr class="sub"><th>Event</th><th>Race&nbsp;day</th><th>Wks</th><th>Target</th>'
-              '<th>Forecast</th><th>Actual</th><th>%</th><th>Forecast</th><th>Actual</th><th>GAP</th>'
-              '<th>Forecast</th><th>Actual</th><th>%</th><th>This&nbsp;mo</th><th title="Registration momentum — the last 3 weeks vs the prior 3 weeks: (3wk − prior 3wk) ÷ prior 3wk. ▲ rising (>+5%) · ▼ softening (<−5%) · ▬ flat. Not a single week-over-week; completed / not-yet-open editions show none.">Trend</th></tr></thead>')
+_TREND_TIP = ("Registration momentum — the last 3 weeks vs the prior 3 weeks: (3wk − prior 3wk) ÷ prior 3wk. "
+              "▲ rising (>+5%) · ▼ softening (<−5%) · ▬ flat. Not a single week-over-week; completed / "
+              "not-yet-open editions show none.")
+_AVF_THEAD = (f'<thead><tr class="grp"><th class="ih" colspan="3">Edition</th>'
+              f'<th class="eolmh" colspan="3">EOLM</th><th class="curh" colspan="3">Current</th>'
+              f'<th title="{_TREND_TIP}">Trend</th><th class="eotmh" colspan="3">EOTM</th></tr>'
+              f'<tr class="sub"><th>Event</th><th>Race&nbsp;day</th><th>Wks</th>'
+              f'<th>Forecast</th><th>Actual</th><th>%</th><th>Forecast</th><th>Actual</th><th>GAP</th>'
+              f'<th title="{_TREND_TIP}">Trend</th><th>Forecast</th><th>Actual</th><th>%</th></tr></thead>')
 
 
-def avf_reg_table(df, meta, prior_map=None):
-    """Registrations Actuals-vs-Forecast grid in the original tracker format: WKS · EOLM (Forecast/
-    Actual/%) · Current (Forecast/Actual/GAP, derived EOTM−EOLM) · EOTM (Forecast/Actual/%) · Last-yr
-    this-month (from prior_map = {event → last-year this-month regs}) · Trend. Reg-only. Completed editions
-    collapse to Race day + Target + EOTM Actual; PORTFOLIO is the total."""
-    prior_map = prior_map or {}
+def avf_reg_table(df, meta):
+    """Still-selling registrations Actuals-vs-Forecast grid: WKS · EOLM (F/A/%) · Current (F/A/GAP =
+    derived EOTM−EOLM) · Trend (between Current and EOTM) · EOTM (F/A/%). Reg-only, % as soft pills.
+    PORTFOLIO is the total. (Completed editions render in completed_reg_table above this grid.)"""
     rows = []
     for r in df.itertuples():
         is_port = str(r.event).upper().startswith("PORTFOLIO")
         st_, dtr, ss_, opn_ = meta.get(r.event, ("selling", float("nan"), "selling", None))
-        passed = (not is_port) and st_ == "completed"
         future = (not is_port) and ss_ == "future"          # not-yet-open edition (opens 2d before prior race)
         race_s = "—" if is_port else ((data.AS_OF + pd.to_timedelta(dtr, unit="D")).strftime("%-d %b")
                                       if pd.notna(dtr) else "—")
         opens_s = (pd.to_datetime(opn_).strftime("%-d %b") if opn_ is not None and pd.notna(opn_) else None)
-        wks_s = ("—" if is_port else '<span class="wpass">completed</span>' if passed
+        wks_s = ("—" if is_port
                  else f'<span class="wfut">opens {opens_s}</span>' if future and opens_s
                  else '<span class="wfut">not open</span>' if future
                  else (f"{dtr/7:.1f}" if pd.notna(dtr) else "—"))
         ef, ea, tf, ta = r.eolm_fcst, r.eolm_act, r.eotm_fcst, r.eotm_act
-        trend_td = ('<td class="m">—</td>' if (passed or future or is_port)
+        trend_td = ('<td class="m">—</td>' if (future or is_port)
                     else f'<td>{_trend_html(getattr(r, "trend", None), getattr(r, "wow_pct", float("nan")))}</td>')
-        if passed or future:      # passed shows EOTM actual; future shows nothing (not selling yet)
-            _eotm = _f_int(ta) if passed else "—"
-            block = ('<td class="eolmc">—</td><td class="eolmc">—</td><td class="eolmc">—</td>'
-                     '<td class="curc">—</td><td class="curc">—</td><td class="curc">—</td>'
-                     f'<td class="eotmc">—</td><td class="eotmc num">{_eotm}</td><td class="eotmc">—</td>')
+        if future:      # not selling yet — nothing to show
+            block_pre = ('<td class="eolmc">—</td><td class="eolmc">—</td><td class="eolmc">—</td>'
+                         '<td class="curc">—</td><td class="curc">—</td><td class="curc">—</td>')
+            block_eotm = '<td class="eotmc">—</td><td class="eotmc num">—</td><td class="eotmc">—</td>'
         else:
             mf, ma = (tf - ef), (ta - ea)
             gap = ma - mf
             gap_s = "—" if pd.isna(gap) else f"{gap:+,.0f}"
-            ec, es = _avf_pctcls(ea, ef); tc, ts = _avf_pctcls(ta, tf)
-            block = (f'<td class="eolmc">{_f_int(ef)}</td><td class="eolmc num">{_f_int(ea)}</td><td class="eolmc {ec}">{es}</td>'
-                     f'<td class="curc">{_f_int(mf)}</td><td class="curc">{_f_int(ma)}</td><td class="curc m">{gap_s}</td>'
-                     f'<td class="eotmc">{_f_int(tf)}</td><td class="eotmc num">{_f_int(ta)}</td><td class="eotmc {tc}">{ts}</td>')
-        _ly = prior_map.get(r.event)
-        lastyr_td = f'<td class="lyc">{_f_int(_ly) if (not future and _isnum(_ly) and _ly > 0) else "—"}</td>'
+            es = softpill(ea / ef if (pd.notna(ea) and pd.notna(ef) and ef) else None)
+            ts = softpill(ta / tf if (pd.notna(ta) and pd.notna(tf) and tf) else None)
+            block_pre = (f'<td class="eolmc">{_f_int(ef)}</td><td class="eolmc num">{_f_int(ea)}</td><td class="eolmc">{es}</td>'
+                         f'<td class="curc">{_f_int(mf)}</td><td class="curc">{_f_int(ma)}</td><td class="curc m">{gap_s}</td>')
+            block_eotm = (f'<td class="eotmc">{_f_int(tf)}</td><td class="eotmc num">{_f_int(ta)}</td><td class="eotmc">{ts}</td>')
         tr_cls = ' class="tot"' if is_port else (' class="future"' if future else '')
         rows.append(f'<tr{tr_cls}><td class="intro ev">{r.event}</td><td class="intro">{race_s}</td>'
-                    f'<td class="intro">{wks_s}</td><td class="intro">{_f_int(getattr(r, "total_target"))}</td>'
-                    f'{block}{lastyr_td}{trend_td}</tr>')
+                    f'<td class="intro">{wks_s}</td>'
+                    f'{block_pre}{trend_td}{block_eotm}</tr>')
     st.markdown(_AVF_CSS + '<div class="avf-scroll"><table class="avf">' + _AVF_THEAD
                 + "<tbody>" + "".join(rows) + "</tbody></table></div>", unsafe_allow_html=True)
+
+
+_CR_CSS = f"""<style>
+table.cr{{border-collapse:collapse;width:100%;font-size:12.5px;font-variant-numeric:tabular-nums;background:#fff}}
+table.cr th,table.cr td{{padding:7px 12px;text-align:right;white-space:nowrap;border-bottom:1px solid {theme.HAIRLINE}}}
+table.cr th.l,table.cr td.ev{{text-align:left}}
+table.cr .grp th{{font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;font-weight:800;border-bottom:2px solid {theme.HAIRLINE};text-align:center;color:{theme.INK};padding-top:9px}}
+table.cr .grp th.ih{{text-align:left;color:{theme.MUTED}}}
+table.cr .grp .regh{{background:rgba(31,182,193,.10)}}
+table.cr .sub th{{font-size:9.5px;text-transform:uppercase;letter-spacing:.03em;color:{theme.MUTED};font-weight:700}}
+table.cr td.ev{{color:{theme.INK};font-weight:700}}
+table.cr td.regc{{background:rgba(31,182,193,.05)}}
+table.cr td.num{{font-weight:700;color:{theme.INK}}}
+table.cr tr.tot td{{border-top:2px solid {theme.HAIRLINE};font-weight:800;background:rgba(255,244,0,.08)}}
+</style>"""
+
+
+def completed_reg_table(yb_done):
+    """Completed editions (reg-only) — Plan → Final → % (soft pill), per edition + PORTFOLIO. `yb_done` has
+    event, reg_target, reg_act (from market_data.year_book_reg, status=='completed')."""
+    T = {"t": 0.0, "a": 0.0}
+    rws = []
+    for r in yb_done.sort_values("days_to_race", ascending=False).itertuples():
+        t, a = pd.to_numeric(r.reg_target, errors="coerce"), pd.to_numeric(r.reg_act, errors="coerce")
+        rws.append(f'<tr><td class="ev">{r.event}</td><td class="regc">{_f_int(t)}</td>'
+                   f'<td class="regc num">{_f_int(a)}</td><td class="regc">{softpill(a / t if (pd.notna(t) and t) else None)}</td></tr>')
+        if pd.notna(t): T["t"] += t
+        if pd.notna(a): T["a"] += a
+    tot = (f'<tr class="tot"><td class="ev">PORTFOLIO</td><td class="regc">{_f_int(T["t"])}</td>'
+           f'<td class="regc">{_f_int(T["a"])}</td><td class="regc">{softpill(T["a"] / T["t"] if T["t"] else None)}</td></tr>')
+    thead = ('<thead><tr class="grp"><th class="ih">Completed edition</th>'
+             '<th class="regh" colspan="3">Registrations</th></tr>'
+             '<tr class="sub"><th class="l">Edition</th><th>Plan</th><th>Final</th><th>%</th></tr></thead>')
+    st.markdown(_CR_CSS + '<div class="avf-scroll"><table class="cr">' + thead + "<tbody>"
+                + "".join(rws) + tot + "</tbody></table></div>", unsafe_allow_html=True)
 
 
 def reg_pacing_table(yb):

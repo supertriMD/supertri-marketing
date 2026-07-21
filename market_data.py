@@ -241,3 +241,60 @@ def yield_share():
     g["scope"] = g.event_canonical.map(D._disp)
     port = g.groupby(["year", "fmt"], as_index=False).regs.sum(); port["scope"] = "PORTFOLIO"
     return pd.concat([g[["scope", "year", "fmt", "regs"]], port], ignore_index=True)
+
+
+# ── Cross-event migration (athletes racing ≥2 Supertri events; reg-only, revenue-free) ──
+# All from the walled v_registration_attributes (person_key · lineage · year · is_staff) — the same source
+# the returning-rate uses. Cumulative since 2025 (pre-2025 can't be attributed to the unified brand); staff
+# (@supertri.com) excluded via is_staff. Matches the board's cross-event tab to ~1 athlete (staff-flag source).
+_MIG_BASE = f"""WITH base AS (SELECT DISTINCT person_key, lineage, year FROM {_ATTR}
+    WHERE person_key IS NOT NULL AND year>=2025 AND lineage IN {_ELIG_SQL} AND is_staff IS NOT TRUE)"""
+
+
+def cross_event_migration() -> pd.DataFrame:
+    """Per asof-year (2025+): distinct athletes racing ≥2 / ≥3 DISTINCT events (cumulative since 2025) + %."""
+    cols = ["year", "athletes", "ge2", "ge3", "ge2_pct", "ge3_pct"]
+    d = D._q(_MIG_BASE + f""", cum AS (SELECT a.person_key, a.year AS asof, COUNT(DISTINCT b.lineage) n
+        FROM (SELECT DISTINCT person_key, year FROM base) a
+        JOIN base b ON a.person_key=b.person_key AND b.year<=a.year GROUP BY 1,2)
+      SELECT asof AS year, COUNT(DISTINCT person_key) athletes,
+        COUNT(DISTINCT IF(n>=2, person_key, NULL)) ge2, COUNT(DISTINCT IF(n>=3, person_key, NULL)) ge3
+      FROM cum WHERE asof IN ({_YRS}) GROUP BY 1 ORDER BY 1""")
+    if not len(d):
+        return pd.DataFrame(columns=cols)
+    d["ge2_pct"] = 100 * d.ge2 / d.athletes
+    d["ge3_pct"] = 100 * d.ge3 / d.athletes
+    return d[cols]
+
+
+def cross_event_by_event() -> pd.DataFrame:
+    """Per event: distinct athletes since 2025 + how many ALSO raced ≥1 other Supertri event (cross share)."""
+    return D._q(_MIG_BASE + """, pc AS (SELECT person_key, COUNT(DISTINCT lineage) n FROM base GROUP BY 1)
+      SELECT b.lineage AS event, COUNT(DISTINCT b.person_key) AS athletes,
+        COUNT(DISTINCT IF(pc.n>=2, b.person_key, NULL)) AS cross_athletes,
+        ROUND(100*COUNT(DISTINCT IF(pc.n>=2, b.person_key, NULL))/COUNT(DISTINCT b.person_key), 1) AS cross_pct
+      FROM base b JOIN pc USING(person_key) GROUP BY 1 ORDER BY cross_athletes DESC""")
+
+
+def cross_event_pairs(limit: int = 8) -> pd.DataFrame:
+    """Event PAIRS by shared athletes since 2025 (people who raced BOTH) — the actual migration flows."""
+    return D._q(_MIG_BASE + f"""
+      SELECT b1.lineage AS event_a, b2.lineage AS event_b, COUNT(DISTINCT b1.person_key) AS shared
+      FROM base b1 JOIN base b2 ON b1.person_key=b2.person_key AND b1.lineage<b2.lineage
+      GROUP BY 1,2 HAVING shared>0 ORDER BY shared DESC LIMIT {int(limit)}""")
+
+
+def cross_event_by_event_year() -> pd.DataFrame:
+    """Per event × cycle-year (2025+): of the athletes racing that event that year, how many are cross-event
+    (≥2 distinct Supertri lineages cumulatively by then) — the year-over-year trend."""
+    cols = ["event", "yr", "athletes", "cross_ath", "cross_pct"]
+    d = D._q(_MIG_BASE + """, cum AS (SELECT a.person_key, a.year AS asof, COUNT(DISTINCT b.lineage) n
+        FROM (SELECT DISTINCT person_key, year FROM base) a
+        JOIN base b ON a.person_key=b.person_key AND b.year<=a.year GROUP BY 1,2)
+      SELECT b.lineage AS event, b.year AS yr, COUNT(DISTINCT b.person_key) AS athletes,
+        COUNT(DISTINCT IF(c.n>=2, b.person_key, NULL)) AS cross_ath
+      FROM base b JOIN cum c ON c.person_key=b.person_key AND c.asof=b.year GROUP BY 1,2 ORDER BY 1,2""")
+    if not len(d):
+        return pd.DataFrame(columns=cols)
+    d["cross_pct"] = (100 * d.cross_ath / d.athletes).round(1)
+    return d[cols]

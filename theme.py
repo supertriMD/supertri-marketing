@@ -119,9 +119,20 @@ CSS = f"""
   .verdict.win {{ background:#F1FBF7; border-color:#C8ECDD; border-left-color:{GREEN}; }}
   .verdict.lose {{ background:#FDF2EF; border-color:#F7D3C8; border-left-color:{RED}; }}
   .verdict b {{ font-weight:700; }}
-  .kpi {{ background:#FFF; border:1px solid {HAIRLINE}; border-top:3px solid {HAIRLINE};
-     border-radius:14px; padding:14px 16px; box-shadow:0 1px 2px rgba(28,28,28,0.05);
-     height:100%; min-height:120px; box-sizing:border-box; }}
+  .kpi {{ background:#FFF; border:1px solid {HAIRLINE}; border-top:3px solid {YELLOW};
+     border-radius:14px; padding:11px 16px 12px; box-shadow:0 1px 2px rgba(28,28,28,0.05);
+     height:100%; min-height:88px; box-sizing:border-box; }}
+  /* year-book season heading — year as headline, selling-count as a quiet subtitle */
+  .seasonttl {{ font-family:'Montserrat','Inter',sans-serif; font-weight:700; font-size:26px;
+     letter-spacing:-0.01em; color:{INK}; margin:8px 0 12px; line-height:1.1; }}
+  .seasonttl .ssub {{ font-family:'Inter',sans-serif; font-weight:500; font-size:14px;
+     color:{MUTED}; letter-spacing:0; }}
+  /* soft attainment / growth pills — one colour language shared across Exec / AvF / YoY tables */
+  .spill {{ display:inline-block; font-size:11px; font-weight:700; padding:2px 8px; border-radius:999px; }}
+  .spill.sg {{ background:rgba(23,184,144,.16); color:#1f7a5c; }}
+  .spill.sa {{ background:rgba(232,163,61,.20); color:#8a5e12; }}
+  .spill.sr {{ background:rgba(228,87,46,.15); color:#a5452c; }}
+  .spill.sm {{ background:rgba(107,107,107,.12); color:{MUTED}; }}
   .kpi .lab {{ color:{MUTED}; font-size:10.5px; font-weight:700; text-transform:uppercase;
      letter-spacing:0.03em; margin-bottom:6px; }}
   .kpi .val {{ color:{INK}; font-size:clamp(16px,1.7vw,27px); font-weight:700; line-height:1.05;
