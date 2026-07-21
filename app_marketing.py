@@ -85,13 +85,7 @@ st.sidebar.caption(f"As-of **{data.AS_OF:%d %b %Y}** · seasons **{md.BASELINE_Y
 st.sidebar.caption("**Registrations only** — this view carries no revenue or financial data.")
 
 # ───────────────────────── brand header band — names the active view (MARKETING VIEW = revenue-free)
-_band = ("Registrations vs Plan" if "Reg vs Plan" in sec
-         else "Participant Profile" if "Gender" in sec
-         else "Athlete Mix" if "Motivation" in sec
-         else "Format Mix" if "Format mix" in sec
-         else "Retention Rate" if "Retention" in sec
-         else "Cross-event Migration" if "Cross-event" in sec
-         else "Registrations")
+_band = sec   # band mirrors the sidebar label
 st.markdown(
     f'<div class="brandbar"><img class="wm" src="{_asset_uri("wordmark_yellow.png")}" alt="supertri"/>'
     f'<span class="title">{_band}</span>'
