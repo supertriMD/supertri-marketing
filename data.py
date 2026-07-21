@@ -78,14 +78,13 @@ def _order_events(df, col="event"):
 
 
 def _reporting_week():
-    """Live 'as-of' = the config-driven reporting week. Under the scoped marketing SA the direct
-    supertri_config read is denied, so it falls back to a LIVE-computed anchor: the most-recent Monday
-    ≤ today — the exact value the courier's `set_reporting_week.py --auto` writes to the config each day.
-    So the marketing as-of auto-advances weekly and tracks the board without needing the config read
-    (local dev with ADC still reads the config directly, giving the identical value)."""
+    """Live 'as-of' = the reporting week, from the walled `supertri_marketing.v_settings` (a revenue-free
+    passthrough of the board's `supertri_config.settings.reporting_week` — single source of truth, so it
+    matches the board exactly, including any manual `--date` freeze). If that read ever fails it falls back
+    to the most-recent Monday ≤ today — the same anchor `set_reporting_week.py --auto` writes."""
     if USE_LIVE:
         try:
-            df = _q("SELECT CAST(reporting_week AS DATE) AS d FROM `$P.supertri_config.settings` LIMIT 1")
+            df = _q("SELECT reporting_week AS d FROM `$P.supertri_marketing.v_settings` LIMIT 1")
             if len(df) and pd.notna(df.d.iloc[0]):
                 return pd.Timestamp(df.d.iloc[0])
         except Exception:
