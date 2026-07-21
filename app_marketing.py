@@ -125,11 +125,25 @@ if "Registrations vs plan" in sec:
         R.season_title(f"{season} season", f"{sell} of {len(yb)} selling")
         tot_t = pd.to_numeric(yb.reg_target, errors="coerce").sum()
         tot_a = pd.to_numeric(yb.reg_act, errors="coerce").sum()
+        # Portfolio EOLM vs Forecast — board parity (v_weekly_update_active): selling editions take their
+        # end-of-last-closed-month actual/forecast from the pacing view; editions raced BEFORE that month
+        # (dropped from the pacing view) contribute their final count as act = fcst, neutral to the gap —
+        # so this matches the board's 'Registrations · EOLM' exactly rather than under-counting their actual.
+        _yra = yb.set_index("event").reg_act
+        _ea = _ef = 0.0
+        for r in reg[~reg.event.str.upper().str.startswith("PORTFOLIO")].itertuples():
+            if pd.notna(r.eolm_act):
+                _ea += r.eolm_act; _ef += (r.eolm_fcst if pd.notna(r.eolm_fcst) else 0.0)
+            else:
+                _fin = _yra.get(r.event)
+                _fin = float(_fin) if (_fin is not None and pd.notna(_fin)) else 0.0
+                _ea += _fin; _ef += _fin
+        reg_gap = (_ea / _ef - 1) if _ef else np.nan
         R.cards_row([
+            R.kpi("Registrations · EOLM", f"{_ea:,.0f}",
+                  f"{reg_gap:+.0%} vs Forecast" if pd.notna(reg_gap) else ""),
             R.kpi("Registrations to date", f"{tot_a:,.0f}", f"{tot_a/tot_t:.0%} of target" if tot_t else ""),
-            R.kpi("Events selling", f"{sell} of {len(yb)}", "",
-                  f"{done} completed" + (f" · {future_n} not yet open" if future_n else "")),
-            R.kpi("Season target", f"{tot_t:,.0f}", "", "planned registrations"),
+            R.kpi("Editions settled", f"{done} of {len(yb)}", "", f"{future_n} not yet open" if future_n else ""),
         ])
         done_ev = set(yb[yb.status == "completed"].event)
         yb_done = yb[yb.event.isin(done_ev)]
