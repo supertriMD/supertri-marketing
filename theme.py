@@ -119,11 +119,12 @@ CSS = f"""
   .verdict.win {{ background:#F1FBF7; border-color:#C8ECDD; border-left-color:{GREEN}; }}
   .verdict.lose {{ background:#FDF2EF; border-color:#F7D3C8; border-left-color:{RED}; }}
   .verdict b {{ font-weight:700; }}
-  .kpi {{ background:#FFF; border:1px solid {HAIRLINE}; border-top:3px solid {YELLOW};
-     border-radius:14px; padding:14px 16px; box-shadow:0 1px 2px rgba(28,28,28,0.05); height:100%; }}
-  .kpi .lab {{ color:{MUTED}; font-size:11px; font-weight:700; text-transform:uppercase;
-     letter-spacing:0.04em; margin-bottom:6px; }}
-  .kpi .val {{ color:{INK}; font-size:clamp(20px,2.1vw,30px); font-weight:700; line-height:1.05;
+  .kpi {{ background:#FFF; border:1px solid {HAIRLINE}; border-top:3px solid {HAIRLINE};
+     border-radius:14px; padding:14px 16px; box-shadow:0 1px 2px rgba(28,28,28,0.05);
+     height:100%; min-height:120px; box-sizing:border-box; }}
+  .kpi .lab {{ color:{MUTED}; font-size:10.5px; font-weight:700; text-transform:uppercase;
+     letter-spacing:0.03em; margin-bottom:6px; }}
+  .kpi .val {{ color:{INK}; font-size:clamp(16px,1.7vw,27px); font-weight:700; line-height:1.05;
      font-family:'Montserrat',sans-serif; white-space:nowrap; }}
   .kpi .dlt {{ font-size:13px; font-weight:700; margin-top:4px; }}
   .kpi .sub {{ color:{MUTED}; font-size:11.5px; margin-top:6px; line-height:1.3; }}

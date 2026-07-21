@@ -60,7 +60,7 @@ def _q(sql: str) -> pd.DataFrame:
     """Run a query against live BigQuery, return a DataFrame. create_bqstorage_client=False keeps the
     scoped SA to Data Viewer + Job User. Normalises the Chicago lineage label for display."""
     df = _bq().query(sql.replace("$P", PROJECT)).result().to_dataframe(create_bqstorage_client=False)
-    return df.replace(r"Chicago Triathlon", "Chicago", regex=True)
+    return df.replace(r"Chicago Triathlon", "Chicago", regex=True).replace(r"Toronto Triathlon", "Toronto", regex=True)
 
 
 def _disp(canon: str) -> str:
