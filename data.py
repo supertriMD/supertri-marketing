@@ -79,8 +79,10 @@ def _order_events(df, col="event"):
 
 def _reporting_week():
     """Live 'as-of' = the config-driven reporting week. Under the scoped marketing SA the direct
-    supertri_config read is denied, so it falls back to the literal below — keep that current, or add a
-    supertri_marketing.v_settings view exposing reporting_week and point this there."""
+    supertri_config read is denied, so it falls back to a LIVE-computed anchor: the most-recent Monday
+    ≤ today — the exact value the courier's `set_reporting_week.py --auto` writes to the config each day.
+    So the marketing as-of auto-advances weekly and tracks the board without needing the config read
+    (local dev with ADC still reads the config directly, giving the identical value)."""
     if USE_LIVE:
         try:
             df = _q("SELECT CAST(reporting_week AS DATE) AS d FROM `$P.supertri_config.settings` LIMIT 1")
@@ -88,7 +90,8 @@ def _reporting_week():
                 return pd.Timestamp(df.d.iloc[0])
         except Exception:
             pass
-    return pd.Timestamp("2026-07-16")
+    today = pd.Timestamp.today().normalize()
+    return today - pd.Timedelta(days=int(today.weekday()))   # this week's Monday = most-recent Monday ≤ today
 
 
 AS_OF = _reporting_week()
