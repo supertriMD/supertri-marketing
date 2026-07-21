@@ -72,12 +72,12 @@ _password_gate()
 # ───────────────────────────────────────────────────────── sidebar
 st.sidebar.caption("Registration insights · **marketing view**")
 SECTIONS = [
-    "1 · Registrations vs plan (by season)",
-    "2 · Participant profile",
-    "3 · Athlete mix (journey / goal)",
-    "4 · Event format mix",
-    "5 · Returning rate",
-    "6 · Cross-event migration",
+    "Reg vs Plan",
+    "Gender / Age",
+    "Motivation",
+    "Format mix",
+    "Retention",
+    "Cross-event Migration",
 ]
 sec = st.sidebar.radio("View", SECTIONS, label_visibility="collapsed")
 st.sidebar.divider()
@@ -85,11 +85,11 @@ st.sidebar.caption(f"As-of **{data.AS_OF:%d %b %Y}** · seasons **{md.BASELINE_Y
 st.sidebar.caption("**Registrations only** — this view carries no revenue or financial data.")
 
 # ───────────────────────── brand header band — names the active view (MARKETING VIEW = revenue-free)
-_band = ("Registrations vs Plan" if "Registrations vs plan" in sec
-         else "Participant Profile" if "Participant profile" in sec
-         else "Athlete Mix" if "Athlete mix" in sec
-         else "Format Mix" if "format mix" in sec
-         else "Returning Rate" if "Returning rate" in sec
+_band = ("Registrations vs Plan" if "Reg vs Plan" in sec
+         else "Participant Profile" if "Gender" in sec
+         else "Athlete Mix" if "Motivation" in sec
+         else "Format Mix" if "Format mix" in sec
+         else "Retention Rate" if "Retention" in sec
          else "Cross-event Migration" if "Cross-event" in sec
          else "Registrations")
 st.markdown(
@@ -113,7 +113,7 @@ def _refit_reg(reg, drop_events):
 
 
 # ═════════════════════════════════════════════════════ 1. REGISTRATIONS VS PLAN
-if "Registrations vs plan" in sec:
+if "Reg vs Plan" in sec:
 
     def block(season):
         yb = md.year_book_reg(season)
@@ -164,7 +164,7 @@ if "Registrations vs plan" in sec:
                "sell · Trend = 3-week vs prior-3-week momentum · % = Actual ÷ Forecast.")
 
 # ═════════════════════════════════════════════════════ 2. PARTICIPANT PROFILE
-elif "Participant profile" in sec:
+elif "Gender" in sec:
     gender, age, avgage = md.profile_v2()
 
     def block(scope):
@@ -184,7 +184,7 @@ elif "Participant profile" in sec:
         block(ev)
 
 # ═════════════════════════════════════════════════════ 3. ATHLETE MIX
-elif "Athlete mix" in sec:
+elif "Motivation" in sec:
     mx = md.athlete_mix_v2()
 
     def block(scope):
@@ -202,7 +202,7 @@ elif "Athlete mix" in sec:
         block(ev)
 
 # ═════════════════════════════════════════════════════ 4. EVENT FORMAT MIX
-elif "format mix" in sec:
+elif "Format mix" in sec:
     fs = md.yield_share()
 
     def block(scope):
@@ -219,7 +219,7 @@ elif "format mix" in sec:
             block(ev)
 
 # ═════════════════════════════════════════════════════ 5. RETURNING RATE
-elif "Returning rate" in sec:
+elif "Retention" in sec:
     rb = md.returning_breakdown()
     st.subheader("Portfolio — all events"); R.returning_table(rb, "PORTFOLIO")
     st.subheader("By event")
