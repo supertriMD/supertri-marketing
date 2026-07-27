@@ -193,6 +193,18 @@ def athlete_mix_v2() -> pd.DataFrame:
     return pd.concat([long, port], ignore_index=True)[["question", "scope", "year", "answer", "n"]]
 
 
+# home→away order (defined inline, NOT via D — the deployed marketing_public/data.py is slim and lacks it)
+ORIGIN_TIERS = ["Local", "Same state", "National", "International", "Unknown"]
+
+
+def origin_tiers() -> pd.DataFrame:
+    """[scope, year, tier, n] from the walled supertri_marketing.v_origin_tiers — a revenue-free passthrough
+    of the board's v_origin_tiers. PORTFOLIO rollup is already in the view. Each reg → one nested ring around
+    the venue: Local (v1 city-name proxy) / Same state / National / International / Unknown. US/CA render
+    4-ring, GB/FR 3-ring (Same state folded → National), same as the board."""
+    return D._q("SELECT scope, year, tier, n FROM `$P.supertri_marketing.v_origin_tiers`")[["scope", "year", "tier", "n"]]
+
+
 # ── Returning rate (email-exact FLOOR) ──
 def returning_breakdown() -> pd.DataFrame:
     """Per (event, year) four-way split — new / yoy_ret / earlier_ret / diff_event — + PORTFOLIO row.

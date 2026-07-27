@@ -11,8 +11,11 @@ Deployed as a public Streamlit app protected by a shared password.
   password is entered, and **fails closed** if the secret is missing.
 
 ## Sections
-Registrations vs plan · Registration ramps (plan vs last year) · Participant profile · Athlete mix ·
-Event format mix · Returning rate.
+**Reg vs Plan · Gender / Age · Motivation · Format mix · Retention · Cross-event Migration**
+(verbatim from `SECTIONS` in `app_marketing.py` — the earlier list here predated the 21–22 Jul redesign).
+
+⚠ **This README is deployed from the standalone public repo** (`supertriMD/supertri-marketing`), so an
+edit here only reaches the live app via `sync_marketing_public.sh`.
 
 ## Deploy (Streamlit Community Cloud)
 1. Deploy this **public** repo → main file `app_marketing.py`.

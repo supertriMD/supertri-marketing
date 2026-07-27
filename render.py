@@ -29,6 +29,9 @@ GENDER_COLORS = {"MALE": theme.INK, "FEMALE": theme.GOLD, "NONBINARY": theme.ACC
                  "Male": theme.INK, "Female": theme.GOLD, "Non-binary": theme.ACCENT2}
 AGE_COLORS = {"<25": theme.ACCENT2, "25-34": theme.GOLD, "35-44": theme.INK,
               "45-54": theme.MUTED, "55+": "#9B6BDF"}
+# Origin rings, home→away: warm gold (home core) → teal → violet → ink (furthest) → faded grey (no origin).
+ORIGIN_COLORS = {"Local": theme.GOLD, "Same state": theme.ACCENT2, "National": "#9B6BDF",
+                 "International": theme.INK, "Unknown": "#cfcfcf"}
 
 
 def _b(t):

@@ -74,6 +74,7 @@ st.sidebar.caption("Registration insights · **marketing view**")
 SECTIONS = [
     "Reg vs Plan",
     "Gender / Age",
+    "Where from",
     "Motivation",
     "Format mix",
     "Retention",
@@ -176,6 +177,29 @@ elif "Gender" in sec:
     ev = _event_pick(gender.scope.unique())
     if ev:
         block(ev)
+
+# ═════════════════════════════════════════════════ 2b. WHERE FROM
+elif "Where from" in sec:
+    ot = md.origin_tiers()
+
+    def block(scope):
+        sub = ot[ot.scope == scope][["year", "tier", "n"]].rename(columns={"tier": "answer"})
+        R.stacked_100_by_year(sub, "Home location relative to the race venue",
+                              colors=R.ORIGIN_COLORS, order=md.ORIGIN_TIERS)
+        tot = sub.groupby("year").n.sum()
+        unk = sub[sub.answer == "Unknown"].groupby("year").n.sum()
+        cov = " · ".join(f"{int(y)} {100*(1 - unk.get(y, 0)/tot[y]):.0f}%" for y in sorted(tot.index) if tot[y])
+        st.caption(f"Geo coverage (rows with a matched home location): {cov}. "
+                   "🎯 Local ≤15 mi is a city-name proxy.")
+
+    if not len(ot):
+        st.info("No origin data available.")
+    else:
+        st.subheader("Portfolio — all events"); block("PORTFOLIO")
+        st.subheader("By event")
+        ev = _event_pick(ot.scope.unique())
+        if ev:
+            block(ev)
 
 # ═════════════════════════════════════════════════════ 3. ATHLETE MIX
 elif "Motivation" in sec:
