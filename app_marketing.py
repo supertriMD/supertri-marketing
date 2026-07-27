@@ -82,7 +82,7 @@ SECTIONS = [
 ]
 sec = st.sidebar.radio("View", SECTIONS, label_visibility="collapsed")
 st.sidebar.divider()
-st.sidebar.caption(f"As-of **{data.AS_OF:%d %b %Y}** · seasons **{md.BASELINE_YEAR}** & **{md.LIVE_CYCLE}**")
+st.sidebar.caption(f"Updated **{data.DATA_UPDATED:%d %b %Y}** · seasons **{md.BASELINE_YEAR}** & **{md.LIVE_CYCLE}**")
 st.sidebar.caption("**Registrations only** — this view carries no revenue or financial data.")
 
 # ───────────────────────── brand header band — names the active view (MARKETING VIEW = revenue-free)

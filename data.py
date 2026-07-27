@@ -94,6 +94,24 @@ def _reporting_week():
 
 
 AS_OF = _reporting_week()
+
+
+def _data_updated():
+    """Sidebar stamp = the LAST DATA REFRESH (the courier's most recent successful ingest, surfaced as
+    `supertri_marketing.v_settings.data_updated_at` — a revenue-free passthrough of
+    MAX(supertri_meta.ingest_runs.started_at)), NOT the reporting-week Monday anchor. Falls back to AS_OF
+    (the reporting week) until that column lands, so the sidebar never breaks — then auto-corrects."""
+    if USE_LIVE:
+        try:
+            df = _q("SELECT DATE(data_updated_at) AS d FROM `$P.supertri_marketing.v_settings` LIMIT 1")
+            if len(df) and pd.notna(df.d.iloc[0]):
+                return pd.Timestamp(df.d.iloc[0])
+        except Exception:
+            pass
+    return AS_OF
+
+
+DATA_UPDATED = _data_updated()
 LIVE_CYCLE = 2027
 BASELINE_YEAR = 2026
 RECENT_YEARS = [2025, 2026, 2027]
