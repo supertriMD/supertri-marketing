@@ -310,3 +310,24 @@ def cross_event_by_event_year() -> pd.DataFrame:
         return pd.DataFrame(columns=cols)
     d["cross_pct"] = (100 * d.cross_ath / d.athletes).round(1)
     return d[cols]
+
+
+CORP_YEARS = [2024, 2025, 2026]   # corporate challenge has mature data from 2024 (LB); mirrors the board
+
+
+def corporate_challenge():
+    """Corporate Challenge cut (D18 cross-cutting flag — athletes keep their real distance): (by_event,
+    entry_mix) from the walled v_registration_attributes. Staff excluded. Mirrors the board's tab."""
+    ce, cm = ["event", "year", "regs", "corp", "corp_pct"], ["year", "answer", "n"]
+    yrs = ",".join(str(y) for y in CORP_YEARS)
+    be = D._q(f"""SELECT lineage AS event, year, COUNT(*) regs, COUNTIF(corporate_challenge) corp
+                  FROM {_ATTR} WHERE is_staff IS NOT TRUE AND year IN ({yrs}) AND lineage IN {_ELIG_SQL}
+                  GROUP BY 1,2 HAVING corp > 0""")
+    if len(be):
+        be["corp_pct"] = (100 * be.corp / be.regs).round(1)
+    em = D._q(f"""SELECT year, IF(cc_entry_type IS NULL OR cc_entry_type='', 'Unspecified',
+                     INITCAP(cc_entry_type)) answer, COUNT(*) n
+                  FROM {_ATTR} WHERE corporate_challenge AND is_staff IS NOT TRUE AND year IN ({yrs})
+                    AND lineage IN {_ELIG_SQL} GROUP BY 1,2""")
+    return (be[ce] if len(be) else pd.DataFrame(columns=ce),
+            em[cm] if len(em) else pd.DataFrame(columns=cm))

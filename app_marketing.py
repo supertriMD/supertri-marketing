@@ -79,6 +79,7 @@ SECTIONS = [
     "Format mix",
     "Retention",
     "Cross-event Migration",
+    "Corporate Challenge",
 ]
 sec = st.sidebar.radio("View", SECTIONS, label_visibility="collapsed")
 st.sidebar.divider()
@@ -331,3 +332,61 @@ elif "Cross-event" in sec:
         st.markdown('<table class="ce"><thead>' + thead + '</thead><tbody>' + rws + prow + '</tbody></table>',
                     unsafe_allow_html=True)
         st.caption("Cumulative distinct Supertri events raced since 2025 · Supertri staff excluded · **no revenue data**.")
+
+# ═════════════════════════════════════════════════════ 7. CORPORATE CHALLENGE
+elif "Corporate" in sec:
+    be, em = md.corporate_challenge()
+    if not len(be):
+        st.info("No corporate challenge data yet.")
+    else:
+        _yr = md.CORP_YEARS[-1]
+        _bl = be[be.year == _yr]
+        _tot = int(_bl.corp.sum())
+        _lb = _bl[_bl.event == "Long Beach"]
+        _lb_pct = float(_lb.corp_pct.iloc[0]) if len(_lb) else np.nan
+        _lb_n = int(_lb.corp.iloc[0]) if len(_lb) else 0
+        _nev = int((_bl.corp > 0).sum())
+        _e = lambda a: int(em[(em.year == _yr) & (em.answer == a)].n.sum())
+        R.cards_row([
+            R.kpi("Corporate athletes", f"{_tot:,}", "", f"across {_nev} events · {_yr}"),
+            R.kpi("Long Beach — corporate share", f"{_lb_pct:.0f}%" if pd.notna(_lb_pct) else "—",
+                  "", f"{_lb_n:,} of its field · the flagship"),
+            R.kpi("Individual vs Relay", f"{_e('Individual'):,} / {_e('Relay'):,}", "", "corporate entries"),
+        ])
+        _chi = {int(r.year): int(r.corp) for r in be[be.event == "Chicago"].itertuples()}
+        R.insight(f"<b>Corporate Challenge is a cross-cutting entry, not a distance</b> — these athletes race their "
+                  f"real distance and are counted here as well. <b>Long Beach is the engine</b> "
+                  f"(~{_lb_pct:.0f}% of its field, {_lb_n:,} athletes), while <b>Chicago is scaling</b> "
+                  f"({_chi.get(2024, 0)}→{_chi.get(2025, 0)}→{_chi.get(2026, 0)} across 2024–26). Clear headroom to "
+                  f"grow it at the other events.")
+        CC_CSS = f"""<style>
+        table.cc{{border-collapse:collapse;width:100%;font-size:12.5px;font-variant-numeric:tabular-nums;background:#fff;margin:2px 0 6px;border:1px solid {theme.HAIRLINE};border-radius:12px;overflow:hidden}}
+        table.cc th,table.cc td{{padding:7px 12px;text-align:right;white-space:nowrap;border-bottom:1px solid {theme.HAIRLINE}}}
+        table.cc th{{font-size:9.5px;text-transform:uppercase;letter-spacing:.04em;color:{theme.MUTED};font-weight:700;background:{theme.OFF_WHITE}}}
+        table.cc th.l,table.cc td.ev{{text-align:left}}
+        table.cc td.ev{{font-weight:700;color:{theme.INK}}}
+        table.cc tr.top td{{background:rgba(255,244,0,.12)}}
+        </style>"""
+        st.subheader("Corporate participation by event")
+        st.caption("Registrations in the Corporate Challenge and their share of each event's field · **Long Beach "
+                   "highlighted** (the flagship) · Supertri staff excluded.")
+        piv = be.pivot_table(index="event", columns="year", values="corp", fill_value=0).astype(int)
+        pivp = be.pivot_table(index="event", columns="year", values="corp_pct", fill_value=0.0)
+        _oc = _yr if _yr in piv.columns else piv.columns[-1]
+        piv = piv.sort_values(_oc, ascending=False)
+        yrs = list(piv.columns)
+
+        def _cc(ev, y):
+            if y not in piv.columns or piv.loc[ev, y] == 0:
+                return "—"
+            return f'{int(piv.loc[ev, y]):,} <span style="color:{theme.MUTED}">({pivp.loc[ev, y]:.1f}%)</span>'
+        rws = "".join(f'<tr class="{"top" if ev == "Long Beach" else ""}"><td class="ev">{ev}</td>'
+                      + "".join(f"<td>{_cc(ev, y)}</td>" for y in yrs) + "</tr>" for ev in piv.index)
+        st.markdown(CC_CSS + '<table class="cc"><thead><tr><th class="l">Event</th>'
+                    + "".join(f"<th>{int(y)}</th>" for y in yrs) + "</tr></thead><tbody>" + rws + "</tbody></table>",
+                    unsafe_allow_html=True)
+
+        st.subheader("Entry type — Individual vs Relay")
+        R.stacked_100_by_year(em[["year", "answer", "n"]], "Corporate entry type",
+                              colors=R.CORP_ENTRY_COLORS, order=["Individual", "Relay", "Unspecified"],
+                              years=md.CORP_YEARS)
