@@ -115,8 +115,7 @@ if "Reg vs Plan" in sec:
         reg, meta = md.weekly_reg(season)
         if not len(yb):
             R.season_title(f"{season} season"); st.info("No editions for this season yet."); return
-        sell = int((yb.sell_state == "selling").sum()); done = int((yb.sell_state == "passed").sum())
-        future_n = int((yb.sell_state == "future").sum())
+        sell = int((yb.sell_state == "selling").sum())
         R.season_title(f"{season} season", f"{sell} of {len(yb)} selling")
         tot_t = pd.to_numeric(yb.reg_target, errors="coerce").sum()
         tot_a = pd.to_numeric(yb.reg_act, errors="coerce").sum()
@@ -132,11 +131,10 @@ if "Reg vs Plan" in sec:
         _ef = (pd.to_numeric(ybd.reg_target, errors="coerce").sum()
                + pd.to_numeric(_sell.eolm_fcst, errors="coerce").sum())
         reg_gap = (_ea / _ef - 1) if _ef else np.nan
-        R.cards_row([
+        R.cards_row([   # 2 cards, matching the board's Actuals-vs-Forecast layout (Editions-settled dropped)
             R.kpi("Registrations · EOLM", f"{_ea:,.0f}",
                   f"{reg_gap:+.0%} vs Forecast" if pd.notna(reg_gap) else ""),
             R.kpi("Registrations to date", f"{tot_a:,.0f}", f"{tot_a/tot_t:.0%} of target" if tot_t else ""),
-            R.kpi("Editions settled", f"{done} of {len(yb)}", "", f"{future_n} not yet open" if future_n else ""),
         ])
         yb_done = yb[yb.event.isin(done_ev)]   # same set as the KPI (sell_state='passed'), board-consistent
         if len(yb_done):
