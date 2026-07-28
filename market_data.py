@@ -126,14 +126,14 @@ def weekly_reg(season: int):
                    CAST(reg_eolm_act AS FLOAT64) AS reg_eolm_act,
                    CAST(reg_thismonth_fcst AS FLOAT64) AS reg_thismonth_fcst,
                    CAST(reg_thismonth_act AS FLOAT64) AS reg_thismonth_act,
-                   reg_trend, CAST(reg_wow_pct AS FLOAT64) AS reg_wow_pct
+                   reg_trend, CAST(reg_wow_pct AS FLOAT64) AS reg_wow_pct, is_launching
                  FROM `$P.supertri_marketing.v_reg_pacing` WHERE edition_year={season}""")
     yb = year_book_reg(season)
     # meta carries sell_state + opens for the future/not-yet-open display ("OPENS <date>"), from v_reg_year_book.
     meta = {r.event: (r.status, r.days_to_race, r.sell_state, r.opens) for r in yb.itertuples()}
     if not len(p):
         return pd.DataFrame(columns=["event", "total_target", "eolm_fcst", "eolm_act",
-                                     "eotm_fcst", "eotm_act", "trend", "wow_pct"]), meta
+                                     "eotm_fcst", "eotm_act", "trend", "wow_pct", "is_launching"]), meta
     reg = pd.DataFrame({
         "event": p.event_code.map(CODE_DISP),
         "total_target": p.reg_target,
@@ -142,14 +142,15 @@ def weekly_reg(season: int):
         "eotm_fcst": p.reg_eolm_fcst + p.reg_thismonth_fcst,
         "eotm_act": p.reg_eolm_act + p.reg_thismonth_act,
         "trend": p.reg_trend,
-        "wow_pct": pd.to_numeric(p.reg_wow_pct, errors="coerce") * 100})   # fraction → percent for display
+        "wow_pct": pd.to_numeric(p.reg_wow_pct, errors="coerce") * 100,   # fraction → percent for display
+        "is_launching": p.is_launching.fillna(False).astype(bool)})   # B19: render '🚀 Launching' on these
     reg = D._order_events(reg)
     # board parity: fill the just-opened 2027 presale editions' actuals (LB/NJ/TOR/TOR_10K)
     if season == LIVE_CYCLE:
         pb = presale_benchmarks()
         if len(pb):
             reg = _merge_presale(reg, pb)
-    port = {"event": "PORTFOLIO", "trend": None, "wow_pct": np.nan}
+    port = {"event": "PORTFOLIO", "trend": None, "wow_pct": np.nan, "is_launching": False}
     for c in ("total_target", "eolm_fcst", "eolm_act", "eotm_fcst", "eotm_act"):
         port[c] = pd.to_numeric(reg[c], errors="coerce").sum(min_count=1)
     return pd.concat([reg, pd.DataFrame([port])], ignore_index=True), meta

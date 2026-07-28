@@ -169,7 +169,10 @@ def _avf_pctcls(a, f):
     return ("g" if r >= 1.05 else "r" if r <= 0.95 else "m"), f"{r*100:.0f}%"
 
 
-def _trend_html(trend, wow):
+def _trend_html(trend, wow, is_launching=False):
+    if is_launching:   # B19: <8wk since launch — trend suppressed while the launch surge clears (board parity)
+        return ('<span class="m" title="Launched under 8 weeks ago — trend held until the launch surge '
+                'clears the comparison window">🚀 Launching</span>')
     ar = {"UP": "▲", "DOWN": "▼", "FLAT": "▬"}.get(trend)
     if not ar:
         return '<span class="m">—</span>'
@@ -233,7 +236,7 @@ def avf_reg_table(df, meta):
                  else (f"{dtr/7:.1f}" if pd.notna(dtr) else "—"))
         ef, ea, tf, ta = r.eolm_fcst, r.eolm_act, r.eotm_fcst, r.eotm_act
         trend_td = ('<td class="m">—</td>' if (future or is_port)
-                    else f'<td>{_trend_html(getattr(r, "trend", None), getattr(r, "wow_pct", float("nan")))}</td>')
+                    else f'<td>{_trend_html(getattr(r, "trend", None), getattr(r, "wow_pct", float("nan")), bool(getattr(r, "is_launching", False)))}</td>')
         if future:      # not selling yet — nothing to show
             block_pre = ('<td class="eolmc">—</td><td class="eolmc">—</td><td class="eolmc">—</td>'
                          '<td class="curc">—</td><td class="curc">—</td><td class="curc">—</td>')
