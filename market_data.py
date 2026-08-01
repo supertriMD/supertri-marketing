@@ -392,11 +392,11 @@ def landing_forecast() -> pd.DataFrame:
 
 
 def landing_curves(codes) -> pd.DataFrame:
-    """Full months-to-race curves for the landing-forecast projection charts — walled v_ramp_trajectory."""
-    cols = ["event_code", "mtr", "act_cum", "prior_cum", "plan_cum", "is_current"]
+    """WEEKLY curves for the landing-forecast projection charts (v2) — walled v_ramp_trajectory_weekly."""
+    cols = ["event_code", "wtr", "act_cum", "prior_cum", "plan_cum", "is_current"]
     if not len(codes):
         return pd.DataFrame(columns=cols)
     inl = "(" + ",".join(f"'{c}'" for c in codes) + ")"
-    return D._q(f"SELECT event_code, mtr, act_cum, prior_cum, plan_cum, is_current "
-                f"FROM `$P.supertri_marketing.v_ramp_trajectory` WHERE event_code IN {inl} "
-                f"ORDER BY event_code, mtr DESC")[cols]
+    return D._q(f"SELECT event_code, wtr, act_cum, prior_cum, plan_cum, is_current "
+                f"FROM `$P.supertri_marketing.v_ramp_trajectory_weekly` WHERE event_code IN {inl} "
+                f"ORDER BY event_code, wtr DESC")[cols]

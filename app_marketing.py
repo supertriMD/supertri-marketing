@@ -225,8 +225,8 @@ elif "Landing forecast" in sec:
                     f'<th class="l">Range · <span style="color:#9B6BDF">LY</span> <span style="color:{theme.ACCENT2}">Plan</span></th>'
                     '</tr></thead><tbody>' + "".join(rws) + '</tbody></table>', unsafe_allow_html=True)
         st.caption("Highlighted rows race within ~90 days (tight bands — order now). **Expected** = central; the "
-                   "**band** widens with distance to race. Monthly grain (weekly for the final 10 weeks is planned). "
-                   "Registrations only · **no revenue data**.")
+                   "**band** widens with distance to race. Band on a monthly cadence; the projection curves below run "
+                   "**weekly** (finer through the final 10 weeks). Registrations only · **no revenue data**.")
 
         st.subheader("Projection curves — next 3 races")
         _top3 = lf.head(3)
