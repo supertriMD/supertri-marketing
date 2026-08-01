@@ -10,6 +10,7 @@ import re as _re
 import numpy as np
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 import streamlit as st
 
 import data
@@ -329,3 +330,38 @@ def _isnum(v):
     return isinstance(v, (int, float, np.integer, np.floating)) and not (isinstance(v, float) and pd.isna(v))
 
 
+
+
+def landing_fig(name, sub, row):
+    """Landing-forecast projection curve (mirror of app._landing_fig): actual (solid) → projected band +
+    expected to race day, prior overlaid. x = months-to-race (reversed)."""
+    sub = sub.sort_values("mtr", ascending=False).copy()
+    for c in ("mtr", "act_cum", "prior_cum", "plan_cum"):
+        sub[c] = pd.to_numeric(sub[c], errors="coerce")
+    cm = row["cur_mtr"]; a = float(row["actual_now"] or 0)
+    fig = go.Figure()
+    if pd.notna(row["last_year"]) and not row["no_prior"]:
+        fig.add_trace(go.Scatter(x=sub.mtr, y=sub.prior_cum, mode="lines", name="last year",
+                                 line=dict(color="#9B6BDF", width=1.5, dash="dot")))
+        _pan = sub.loc[sub.mtr == cm, "prior_cum"]
+        pan = float(_pan.iloc[0]) if len(_pan) else 0.0
+        denom = (float(row["last_year"]) - pan) or 1.0
+        fut = sub[sub.mtr <= cm].copy()
+        for c, k in (("lo", "low"), ("hi", "high"), ("ex", "expected")):
+            fut[c] = a + (fut.prior_cum - pan) * (float(row[k]) - a) / denom
+        fig.add_trace(go.Scatter(x=fut.mtr, y=fut.hi, mode="lines", line=dict(width=0), showlegend=False, hoverinfo="skip"))
+        fig.add_trace(go.Scatter(x=fut.mtr, y=fut.lo, mode="lines", line=dict(width=0), fill="tonexty",
+                                 fillcolor="rgba(201,162,39,.22)", name="low–high"))
+        fig.add_trace(go.Scatter(x=fut.mtr, y=fut.ex, mode="lines", name="expected",
+                                 line=dict(color=theme.INK, width=2, dash="dash")))
+    else:
+        fig.add_trace(go.Scatter(x=sub.mtr, y=sub.plan_cum, mode="lines", name="plan",
+                                 line=dict(color=theme.ACCENT2, width=1.5, dash="dot")))
+    act = sub[sub.mtr >= cm]
+    fig.add_trace(go.Scatter(x=act.mtr, y=act.act_cum, mode="lines", name="actual",
+                             line=dict(color=theme.INK, width=2.8)))
+    fig.update_layout(title=dict(text=name, font=dict(size=13)), height=250, margin=dict(l=6, r=6, t=48, b=28),
+                      xaxis=dict(title="months to race", autorange="reversed", zeroline=False),
+                      yaxis=dict(title=None, rangemode="tozero"),
+                      legend=dict(orientation="h", yanchor="bottom", y=1.0, x=0, font=dict(size=9.5)))
+    return fig

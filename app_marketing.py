@@ -228,6 +228,16 @@ elif "Landing forecast" in sec:
                    "**band** widens with distance to race. Monthly grain (weekly for the final 10 weeks is planned). "
                    "Registrations only · **no revenue data**.")
 
+        st.subheader("Projection curves — next 3 races")
+        _top3 = lf.head(3)
+        _cur = md.landing_curves(list(_top3.event_code))
+        for _col, (_, _r) in zip(st.columns(len(_top3)), _top3.iterrows()):
+            with _col:
+                st.plotly_chart(R.landing_fig(_r.event, _cur[_cur.event_code == _r.event_code], _r),
+                                use_container_width=True)
+        st.caption("Solid = registrations to date · dashed ink = expected path to race day · gold band = low–high · "
+                   "dotted purple = last year (dotted teal = plan where there's no prior). x = months to race.")
+
 # ═════════════════════════════════════════════════════ 2. PARTICIPANT PROFILE
 elif "Gender" in sec:
     gender, age, avgage = md.profile_v2()

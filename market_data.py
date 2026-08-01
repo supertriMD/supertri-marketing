@@ -389,3 +389,14 @@ def landing_forecast() -> pd.DataFrame:
     df["race_date"] = [edm.get((ec, ey)) for ec, ey in zip(df.event_code, df._ey)]
     df["event"] = df.event_code.map(D.CODE_DISP).fillna(df.event_code)
     return df.sort_values("race_date", na_position="last").reset_index(drop=True)[cols]
+
+
+def landing_curves(codes) -> pd.DataFrame:
+    """Full months-to-race curves for the landing-forecast projection charts — walled v_ramp_trajectory."""
+    cols = ["event_code", "mtr", "act_cum", "prior_cum", "plan_cum", "is_current"]
+    if not len(codes):
+        return pd.DataFrame(columns=cols)
+    inl = "(" + ",".join(f"'{c}'" for c in codes) + ")"
+    return D._q(f"SELECT event_code, mtr, act_cum, prior_cum, plan_cum, is_current "
+                f"FROM `$P.supertri_marketing.v_ramp_trajectory` WHERE event_code IN {inl} "
+                f"ORDER BY event_code, mtr DESC")[cols]
