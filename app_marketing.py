@@ -231,10 +231,9 @@ elif "Landing forecast" in sec:
         st.subheader("Projection curves — next 3 races")
         _top3 = lf.head(3)
         _cur = md.landing_curves(list(_top3.event_code))
-        for _col, (_, _r) in zip(st.columns(len(_top3)), _top3.iterrows()):
-            with _col:
-                st.plotly_chart(R.landing_fig(_r.event, _cur[_cur.event_code == _r.event_code], _r),
-                                use_container_width=True)
+        for _, _r in _top3.iterrows():                 # full-width, stacked (bigger + more readable)
+            st.plotly_chart(R.landing_fig(_r.event, _cur[_cur.event_code == _r.event_code], _r),
+                            use_container_width=True)
         st.caption("Solid = registrations to date · dashed ink = expected path to race day · gold band = low–high · "
                    "dotted purple = last year (dotted teal = plan where there's no prior). x = months to race.")
 

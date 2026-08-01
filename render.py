@@ -367,8 +367,8 @@ def landing_fig(name, sub, row):
         fig.add_trace(go.Scatter(x=tail.m, y=tail.act_cum, mode="markers",
                                  marker=dict(color=theme.INK, size=4), showlegend=False, hoverinfo="skip"))
     fig.add_vline(x=10 / 4.345, line=dict(color=theme.MUTED, width=1, dash="dot"))
-    fig.update_layout(title=dict(text=name, font=dict(size=13)), height=250, margin=dict(l=6, r=6, t=48, b=28),
+    fig.update_layout(title=dict(text=name, font=dict(size=15)), height=360, margin=dict(l=8, r=8, t=44, b=32),
                       xaxis=dict(title="months to race (weekly)", autorange="reversed", zeroline=False),
-                      yaxis=dict(title=None, rangemode="tozero"),
-                      legend=dict(orientation="h", yanchor="bottom", y=1.0, x=0, font=dict(size=9.5)))
+                      yaxis=dict(title="registrations", rangemode="tozero"),
+                      legend=dict(orientation="h", yanchor="bottom", y=1.0, x=0, font=dict(size=11)))
     return fig
