@@ -73,6 +73,7 @@ _password_gate()
 st.sidebar.caption("Registration insights · **marketing view**")
 SECTIONS = [
     "Reg vs Plan",
+    "Landing forecast",
     "Gender / Age",
     "Where from",
     "Motivation",
@@ -153,6 +154,79 @@ if "Reg vs Plan" in sec:
     block(md.LIVE_CYCLE)
     st.caption("Registrations only · Forecast = the modelled registration plan · GAP = the month's remaining "
                "sell · Trend = 3-week vs prior-3-week momentum · % = Actual ÷ Forecast.")
+
+# ═════════════════════════════════════════════════════ 1b. LANDING FORECAST
+elif "Landing forecast" in sec:
+    lf = md.landing_forecast()
+    if not len(lf):
+        st.info("No landing forecast available.")
+    else:
+        _today = pd.Timestamp.today().normalize()
+        _bnd = lf[lf.expected.notna()]
+        p_exp, p_lo, p_hi = int(_bnd.expected.sum()), int(_bnd.low.sum()), int(_bnd.high.sum())
+        _np_n = int(lf.no_prior.sum())
+        cards = [R.kpi("All selling editions · expected on race day", f"{p_exp:,}", "",
+                       f"order range {p_lo:,} – {p_hi:,}"),
+                 R.kpi("Ordering-ready now (≤90 days)",
+                       f"{int((pd.to_datetime(lf.race_date) - _today).dt.days.le(90).sum())} of {len(lf)}",
+                       "", "the rest tighten as they approach")]
+        if _np_n:
+            cards.append(R.kpi("No prior curve", f"{_np_n}", "", "first-year event — plan-only"))
+        R.cards_row(cards)
+        R.insight("Projected race-day participants for <b>ordering</b> — every currently-selling edition, next race "
+                  "first. Data-driven (registration curve + prior-year shape), <b>not</b> the plan. Reliable ~3–6 "
+                  "months out; directional before that. Expected = central; band = low–high.")
+
+        _sc = max(9500.0, float(lf.high.max()) * 1.05) if lf.high.notna().any() else 9500.0
+        _pct = lambda v: max(0.0, min(100.0, 100.0 * float(v) / _sc))
+        def _out(rd):
+            if pd.isna(rd): return "—"
+            d = (pd.Timestamp(rd) - _today).days
+            return "raced" if d < 0 else (f"{round(d/7)} wk" if d < 70 else f"{round(d/30.4)} mo")
+        _cc = {"HIGH": "g", "MED": "a", "LOW": "m", "NO PRIOR": "np"}
+        LF_CSS = f"""<style>
+        table.lf{{border-collapse:collapse;width:100%;font-size:12.5px;font-variant-numeric:tabular-nums;background:#fff;margin:2px 0 6px;border:1px solid {theme.HAIRLINE};border-radius:12px;overflow:hidden}}
+        table.lf th,table.lf td{{padding:7px 9px;text-align:right;white-space:nowrap;border-bottom:1px solid {theme.HAIRLINE}}}
+        table.lf th{{font-size:9px;text-transform:uppercase;letter-spacing:.03em;color:{theme.MUTED};font-weight:700;background:{theme.OFF_WHITE}}}
+        table.lf th.l,table.lf td.l{{text-align:left}}
+        table.lf td.ev{{font-weight:700;color:{theme.INK}}}
+        table.lf td.exp{{font-weight:800;color:{theme.INK};font-size:13.5px}}
+        table.lf tr.soon td{{background:rgba(255,244,0,.09)}}
+        .cf{{display:inline-block;font-size:9px;font-weight:800;border-radius:20px;padding:2px 7px}}
+        .cf.g{{background:#d8f5e0;color:#12703a}}.cf.a{{background:#fff2c2;color:#7a5b00}}.cf.m{{background:#ececec;color:#777}}.cf.np{{background:#ffe0e0;color:#a33}}
+        .lbar{{position:relative;height:16px;width:150px;background:{theme.HAIRLINE};border-radius:3px;display:inline-block;vertical-align:middle}}
+        .lbar .sg{{position:absolute;top:0;height:100%;background:{theme.GOLD};opacity:.85;border-radius:3px}}
+        .lbar .dt{{position:absolute;top:-3px;width:3px;height:22px;background:{theme.INK};border-radius:2px}}
+        .lbar .tk{{position:absolute;top:1px;width:2px;height:14px}}
+        </style>"""
+        rws = []
+        for r in lf.itertuples():
+            soon = (not pd.isna(r.race_date)) and (pd.Timestamp(r.race_date) - _today).days <= 90
+            conf = f'<span class="cf {_cc.get(r.confidence,"m")}">{r.confidence}</span>'
+            ly = f"{int(r.last_year):,}" if pd.notna(r.last_year) else "—"
+            pl = f"{int(r.plan):,}" if pd.notna(r.plan) else "—"
+            if r.no_prior or pd.isna(r.expected):
+                cells = f'<td class="l" colspan="3" style="color:{theme.MUTED};font-style:italic;text-align:center">{r.note}</td>'
+                bar = (f'<div class="lbar"><div class="tk" style="left:{_pct(r.plan)}%;background:{theme.ACCENT2}"></div>'
+                       f'<div class="dt" style="left:{_pct(r.actual_now)}%;background:{theme.MUTED}"></div></div>') if pd.notna(r.plan) else ""
+            else:
+                cells = f'<td>{int(r.low):,}</td><td class="exp">{int(r.expected):,}</td><td>{int(r.high):,}</td>'
+                bar = (f'<div class="lbar"><div class="sg" style="left:{_pct(r.low)}%;width:{_pct(r.high)-_pct(r.low)}%"></div>'
+                       f'<div class="dt" style="left:{_pct(r.expected)}%"></div>'
+                       f'<div class="tk" style="left:{_pct(r.last_year)}%;background:#9B6BDF"></div>'
+                       f'<div class="tk" style="left:{_pct(r.plan)}%;background:{theme.ACCENT2}"></div></div>')
+            rws.append(f'<tr class="{"soon" if soon else ""}"><td class="ev l">{r.event}</td>'
+                       f'<td class="l">{"" if pd.isna(r.race_date) else pd.Timestamp(r.race_date).strftime("%-d %b %y")}</td>'
+                       f'<td>{_out(r.race_date)}</td><td class="l">{conf}</td><td>{ly}</td><td>{pl}</td>'
+                       f'{cells}<td class="l">{bar}</td></tr>')
+        st.markdown(LF_CSS + '<table class="lf"><thead><tr>'
+                    '<th class="l">Event</th><th class="l">Race day</th><th>Out</th><th class="l">Conf.</th>'
+                    '<th>Last yr</th><th>Plan</th><th>Low</th><th>Expected</th><th>High</th>'
+                    f'<th class="l">Range · <span style="color:#9B6BDF">LY</span> <span style="color:{theme.ACCENT2}">Plan</span></th>'
+                    '</tr></thead><tbody>' + "".join(rws) + '</tbody></table>', unsafe_allow_html=True)
+        st.caption("Highlighted rows race within ~90 days (tight bands — order now). **Expected** = central; the "
+                   "**band** widens with distance to race. Monthly grain (weekly for the final 10 weeks is planned). "
+                   "Registrations only · **no revenue data**.")
 
 # ═════════════════════════════════════════════════════ 2. PARTICIPANT PROFILE
 elif "Gender" in sec:

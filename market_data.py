@@ -332,3 +332,60 @@ def corporate_challenge():
                     AND lineage IN {_ELIG_SQL} GROUP BY 1,2""")
     return (be[ce] if len(be) else pd.DataFrame(columns=ce),
             em[cm] if len(em) else pd.DataFrame(columns=cm))
+
+
+# ── Landing forecast (mirror of data.landing_forecast; walled reg-count views) ──────────────────
+def _landing_band(cur_mtr, actual_now, prior_at_now, prior_final, plan_final):
+    """Race-day landing band from the ramp curve — mirror of data._landing_band. Returns
+    (low, expected, high, confidence, note). Ratio central once ≤6mo with a representative prior,
+    else remaining-adds; band widens with distance, capped at 1.5× remaining-adds."""
+    a = float(actual_now or 0)
+    pf = float(prior_final) if (prior_final not in (None, 0) and pd.notna(prior_final)) else None
+    pan = float(prior_at_now or 0)
+    if pf is None:
+        return None, None, None, "NO PRIOR", "first edition — no prior curve to project; plan-only"
+    remaining = a + (pf - pan)
+    ratio = (a * pf / pan) if pan > 0 else None
+    representative = pan >= 0.15 * pf
+    reliable = (cur_mtr is not None and cur_mtr <= 6 and representative and ratio is not None)
+    if reliable:                                           conf, w, exp = "HIGH", 0.05, (ratio + remaining) / 2
+    elif cur_mtr is not None and cur_mtr <= 9 and pan > 0: conf, w, exp = "MED", 0.12, remaining
+    else:                                                  conf, w, exp = "LOW", 0.22, remaining
+    methods = [remaining] + ([ratio] if ratio is not None else [])
+    cap = 1.5 * remaining
+    lo = max(min(min(methods), exp * (1 - w)), a)
+    hi = min(max(max(methods), exp * (1 + w)), cap)
+    exp = max(lo, min(exp, hi))
+    note = "prior hadn't started selling this early — directional only" if pan == 0 else ""
+    return round(lo), round(exp), round(hi), conf, note
+
+
+def landing_forecast() -> pd.DataFrame:
+    """Race-day landing forecast for ordering — every currently-selling edition, ranked by upcoming race.
+    From the walled v_ramp_trajectory (reg counts) + v_reg_year_book (race dates). Revenue-free."""
+    cols = ["event", "event_code", "race_date", "cur_mtr", "actual_now", "last_year", "plan",
+            "low", "expected", "high", "confidence", "note", "no_prior"]
+    t = D._q("SELECT event_code, edition_year, mtr, act_cum, prior_cum, plan_cum, is_current "
+             "FROM `$P.supertri_marketing.v_ramp_trajectory`")
+    ed = D._q("SELECT event_code, CAST(edition_year AS INT64) edition_year, CAST(race_date AS DATE) race_date "
+              "FROM `$P.supertri_marketing.v_reg_year_book`")
+    if not len(t):
+        return pd.DataFrame(columns=cols)
+    rows = []
+    for (ec, ey), sub in t.groupby(["event_code", "edition_year"]):
+        cur = sub[sub.is_current]
+        cur_mtr = int(cur.mtr.iloc[0]) if len(cur) else None
+        actual_now = float(cur.act_cum.iloc[0]) if len(cur) else 0.0
+        prior_at_now = float(cur.prior_cum.iloc[0]) if len(cur) else 0.0
+        m0 = sub[sub.mtr == 0]
+        pf = float(m0.prior_cum.iloc[0]) if (len(m0) and pd.notna(m0.prior_cum.iloc[0])) else None
+        plan_final = float(m0.plan_cum.iloc[0]) if (len(m0) and pd.notna(m0.plan_cum.iloc[0])) else None
+        lo, exp, hi, conf, note = _landing_band(cur_mtr, actual_now, prior_at_now, pf, plan_final)
+        rows.append(dict(event_code=ec, race_date=None, cur_mtr=cur_mtr, actual_now=round(actual_now),
+                         last_year=(round(pf) if pf else None), plan=(round(plan_final) if plan_final else None),
+                         low=lo, expected=exp, high=hi, confidence=conf, note=note, no_prior=(pf is None), _ey=ey))
+    df = pd.DataFrame(rows)
+    edm = {(r.event_code, r.edition_year): r.race_date for r in ed.itertuples()} if len(ed) else {}
+    df["race_date"] = [edm.get((ec, ey)) for ec, ey in zip(df.event_code, df._ey)]
+    df["event"] = df.event_code.map(D.CODE_DISP).fillna(df.event_code)
+    return df.sort_values("race_date", na_position="last").reset_index(drop=True)[cols]
