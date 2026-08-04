@@ -96,22 +96,34 @@ def _reporting_week():
 AS_OF = _reporting_week()
 
 
-def _data_updated():
-    """Sidebar stamp = the LAST DATA REFRESH (the courier's most recent successful ingest, surfaced as
-    `supertri_marketing.v_settings.data_updated_at` — a revenue-free passthrough of
-    MAX(supertri_meta.ingest_runs.started_at)), NOT the reporting-week Monday anchor. Falls back to AS_OF
-    (the reporting week) until that column lands, so the sidebar never breaks — then auto-corrects."""
+def data_updated():
+    """Sidebar stamp = the LAST DATA REFRESH (courier's most recent ingest, `v_settings.data_updated_at`) as a
+    tz-aware UTC TIMESTAMP (keeps the time). Read LIVE each render (6h-cached, tracks the daily courier), not a
+    frozen module constant. Falls back to the reporting-week midnight if absent."""
+    ts = None
     if USE_LIVE:
         try:
-            df = _q("SELECT DATE(data_updated_at) AS d FROM `$P.supertri_marketing.v_settings` LIMIT 1")
-            if len(df) and pd.notna(df.d.iloc[0]):
-                return pd.Timestamp(df.d.iloc[0])
+            df = _q("SELECT data_updated_at FROM `$P.supertri_marketing.v_settings` LIMIT 1")
+            if len(df) and pd.notna(df.data_updated_at.iloc[0]):
+                ts = pd.Timestamp(df.data_updated_at.iloc[0])
         except Exception:
-            pass
-    return AS_OF
+            ts = None
+    if ts is None:
+        ts = pd.Timestamp(AS_OF)
+    return ts.tz_localize("UTC") if ts.tzinfo is None else ts
 
 
-DATA_UPDATED = _data_updated()
+def fmt_updated(ts):
+    """'1 Aug 2026 · 07:12 BST' — date + time in Europe/London (team tz), fallback UTC."""
+    try:
+        from zoneinfo import ZoneInfo
+        loc = ts.tz_convert(ZoneInfo("Europe/London"))
+        return f"{loc:%-d %b %Y · %H:%M} {loc.tzname()}"
+    except Exception:
+        u = ts.tz_convert("UTC") if ts.tzinfo else ts
+        return f"{u:%-d %b %Y · %H:%M} UTC"
+
+
 LIVE_CYCLE = 2027
 BASELINE_YEAR = 2026
 RECENT_YEARS = [2025, 2026, 2027]
