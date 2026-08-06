@@ -27,11 +27,13 @@ MIX_QUESTIONS = D.MIX_QUESTIONS
 PROJECT, LOCATION = D.PROJECT, D.LOCATION
 SEASONS = [BASELINE_YEAR, LIVE_CYCLE]
 
-# Cancelled editions (owner, 6 Aug 2026) — mirror of the board's registry. RETAIN tickets-to-date, DROP the
-# plan from the rollup + stop forecasting/projecting them. INTERIM constant; chat 1 is landing an
-# authoritative warehouse flag (`v_reg_year_book.sell_state='cancelled'`), which `_is_cancelled` also honours
-# so this can be emptied later with no other change. Kept local to the marketing bundle (slim data.py).
-CANCELLED_EDITIONS = {("KER", 2026)}
+# Cancelled editions — AUTHORITATIVE source is the warehouse `v_reg_year_book.sell_state='cancelled'` (chat 1,
+# 6 Aug 2026). year_book_reg unifies it into `sell_state`; consumers derive the cancelled set from there.
+# CANCELLED_EDITIONS is an EMPTY manual-override hook (kept local to the slim bundle) — populate only to force
+# a cancellation the warehouse hasn't caught up to. RETAIN tickets-to-date, DROP plan, no forecast/landing.
+# NB: the warehouse also drops cancelled editions from v_reg_pacing/v_ramp_trajectory — weekly_reg pulls them
+# back from year_book so they still render badged CANCELLED (revenue-free, tickets only).
+CANCELLED_EDITIONS: set = set()
 
 def _is_cancelled(event_code, year) -> bool:
     try:
@@ -170,8 +172,20 @@ def weekly_reg(season: int):
         pb = presale_benchmarks()
         if len(pb):
             reg = _merge_presale(reg, pb)
-    # Cancelled editions: keep eolm/eotm ACT (retained), NULL forecast + plan (so the PORTFOLIO sum below
-    # drops their plan but keeps their actuals). Rendered as 'cancelled' via meta (status) in avf_reg_table.
+    # Cancelled editions are dropped from v_reg_pacing by the warehouse (no pacing for a cancelled event) —
+    # pull them back from year_book as a to-date-only row so they still render badged CANCELLED (retain the
+    # numbers). Actual = reg_act (tickets to date); forecast/plan NaN; 'cancelled' shown via meta in the render.
+    if "sell_state" in yb.columns:
+        cyb = yb[(yb.sell_state == "cancelled") & (~yb.event.isin(reg.event))]
+        if len(cyb):
+            ra = pd.to_numeric(cyb.reg_act, errors="coerce")
+            reg = D._order_events(pd.concat([reg, pd.DataFrame({
+                "event": cyb.event.values, "total_target": np.nan, "eolm_fcst": np.nan,
+                "eolm_act": ra.values, "eotm_fcst": np.nan, "eotm_act": ra.values,
+                "trend": None, "wow_pct": np.nan, "is_launching": False})], ignore_index=True))
+    # Manual-override hook (CANCELLED_EDITIONS, empty by default): if a cancelled edition is STILL in the
+    # pacing frame (warehouse not caught up), keep eolm/eotm ACT but NULL forecast + plan so the PORTFOLIO
+    # sum drops its plan while retaining actuals.
     _canc = {CODE_DISP.get(ec, ec) for (ec, y) in CANCELLED_EDITIONS if y == season}
     if _canc:
         m = reg.event.isin(_canc)
