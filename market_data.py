@@ -27,6 +27,18 @@ MIX_QUESTIONS = D.MIX_QUESTIONS
 PROJECT, LOCATION = D.PROJECT, D.LOCATION
 SEASONS = [BASELINE_YEAR, LIVE_CYCLE]
 
+# Cancelled editions (owner, 6 Aug 2026) — mirror of the board's registry. RETAIN tickets-to-date, DROP the
+# plan from the rollup + stop forecasting/projecting them. INTERIM constant; chat 1 is landing an
+# authoritative warehouse flag (`v_reg_year_book.sell_state='cancelled'`), which `_is_cancelled` also honours
+# so this can be emptied later with no other change. Kept local to the marketing bundle (slim data.py).
+CANCELLED_EDITIONS = {("KER", 2026)}
+
+def _is_cancelled(event_code, year) -> bool:
+    try:
+        return (str(event_code), int(year)) in CANCELLED_EDITIONS
+    except Exception:
+        return False
+
 _ATTR = "`$P.supertri_marketing.v_registration_attributes`"   # revenue-free enrichment attributes
 _FMT = "`$P.supertri_marketing.v_format_mix`"                  # revenue-free format grain (cycle_registrations projection)
 _ELIG_SQL = D._ELIG_SQL                                        # lineage IN (...) filter (real BQ labels)
@@ -56,10 +68,18 @@ def year_book_reg(year: int) -> pd.DataFrame:
     _passed = np.where(df.sell_state.notna(), df.sell_state.eq("passed"),
                        pd.to_datetime(df.race_date) < AS_OF)
     df["status"] = np.where(_passed, "completed", "selling")
+    # Cancelled editions: retain reg_act, drop plan (target) — status/sell_state='cancelled'. Honour a
+    # warehouse sell_state='cancelled' too (chat 1) so the interim registry can be emptied later.
+    _canc = df.event_code.map(lambda ec: _is_cancelled(ec, year)) | df.sell_state.eq("cancelled")
+    if _canc.any():
+        df.loc[_canc, ["sell_state", "status"]] = ["cancelled", "cancelled"]
+        df.loc[_canc, "reg_target"] = np.nan
     df["days_to_race"] = (pd.to_datetime(df.race_date) - AS_OF).dt.days
     df["reg_pct"] = df.reg_act / df.reg_target
     df["landing_reg"] = np.maximum(pd.to_numeric(df.landing_reg, errors="coerce").fillna(df.reg_act),
                                    df.reg_act.fillna(0))
+    if _canc.any():
+        df.loc[_canc, "landing_reg"] = pd.to_numeric(df.loc[_canc, "reg_act"], errors="coerce")   # no projection
     return D._order_events(df[["event", "event_code", "edition_year", "race_date", "status", "sell_state", "opens",
                                "days_to_race", "reg_act", "reg_target", "reg_pct", "landing_reg", "ccy"]])
 
@@ -150,6 +170,16 @@ def weekly_reg(season: int):
         pb = presale_benchmarks()
         if len(pb):
             reg = _merge_presale(reg, pb)
+    # Cancelled editions: keep eolm/eotm ACT (retained), NULL forecast + plan (so the PORTFOLIO sum below
+    # drops their plan but keeps their actuals). Rendered as 'cancelled' via meta (status) in avf_reg_table.
+    _canc = {CODE_DISP.get(ec, ec) for (ec, y) in CANCELLED_EDITIONS if y == season}
+    if _canc:
+        m = reg.event.isin(_canc)
+        for c in ("total_target", "eolm_fcst", "eotm_fcst"):
+            reg.loc[m, c] = np.nan
+        reg.loc[m, "trend"] = None
+        reg.loc[m, "wow_pct"] = np.nan
+        reg.loc[m, "is_launching"] = False
     port = {"event": "PORTFOLIO", "trend": None, "wow_pct": np.nan, "is_launching": False}
     for c in ("total_target", "eolm_fcst", "eolm_act", "eotm_fcst", "eotm_act"):
         port[c] = pd.to_numeric(reg[c], errors="coerce").sum(min_count=1)
@@ -385,6 +415,11 @@ def landing_forecast() -> pd.DataFrame:
                          last_year=(round(pf) if pf else None), plan=(round(plan_final) if plan_final else None),
                          low=lo, expected=exp, high=hi, confidence=conf, note=note, no_prior=(pf is None), _ey=ey))
     df = pd.DataFrame(rows)
+    # A cancelled edition has no race day to land on — drop it from the ordering forecast.
+    if len(df):
+        df = df[[not _is_cancelled(ec, ey) for ec, ey in zip(df.event_code, df._ey)]].reset_index(drop=True)
+    if not len(df):
+        return pd.DataFrame(columns=cols)
     edm = {(r.event_code, r.edition_year): r.race_date for r in ed.itertuples()} if len(ed) else {}
     df["race_date"] = [edm.get((ec, ey)) for ec, ey in zip(df.event_code, df._ey)]
     df["event"] = df.event_code.map(D.CODE_DISP).fillna(df.event_code)

@@ -118,7 +118,9 @@ if "Reg vs Plan" in sec:
         if not len(yb):
             R.season_title(f"{season} season"); st.info("No editions for this season yet."); return
         sell = int((yb.sell_state == "selling").sum())
-        R.season_title(f"{season} season", f"{sell} of {len(yb)} selling")
+        canc_n = int((yb.sell_state == "cancelled").sum())
+        canc_ev = {md.CODE_DISP.get(ec, ec) for (ec, y) in md.CANCELLED_EDITIONS if y == season}
+        R.season_title(f"{season} season", f"{sell} of {len(yb)} selling" + (f" · {canc_n} cancelled" if canc_n else ""))
         tot_t = pd.to_numeric(yb.reg_target, errors="coerce").sum()
         tot_a = pd.to_numeric(yb.reg_act, errors="coerce").sum()
         # Portfolio EOLM vs Forecast — board parity (owner, 27 Jul): a COMPLETED edition is measured vs its
@@ -127,7 +129,10 @@ if "Reg vs Plan" in sec:
         # against the same actual (completed final + selling EOLM actual). Matches the board's AvF KPI exactly.
         done_ev = set(yb[yb.sell_state == "passed"].event) if "sell_state" in yb.columns else set(yb[yb.status == "completed"].event)
         ybd = yb[yb.event.isin(done_ev)]
-        _sell = reg[~reg.event.str.upper().str.startswith("PORTFOLIO") & ~reg.event.isin(done_ev)]
+        # cancelled editions carry no plan and can't be paced → excluded from BOTH sides of the pacing KPI
+        # (their retained to-date still shows in their own row + the 'Registrations to date' card).
+        _sell = reg[~reg.event.str.upper().str.startswith("PORTFOLIO")
+                    & ~reg.event.isin(done_ev) & ~reg.event.isin(canc_ev)]
         _ea = (pd.to_numeric(ybd.reg_act, errors="coerce").sum()
                + pd.to_numeric(_sell.eolm_act, errors="coerce").sum())
         _ef = (pd.to_numeric(ybd.reg_target, errors="coerce").sum()

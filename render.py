@@ -204,6 +204,10 @@ table.avf .g{{color:{theme.GREEN};font-weight:700}}table.avf .r{{color:{theme.RE
 table.avf .wpass{{font-weight:700;color:{theme.AMBER};text-transform:uppercase;font-size:10px;letter-spacing:.05em}}
 table.avf .wfut{{font-weight:700;color:{theme.ACCENT2};text-transform:uppercase;font-size:10px;letter-spacing:.05em}}
 table.avf tr.future td{{color:{theme.MUTED};background:rgba(31,182,193,.045)}}
+table.avf tr.canc td{{background:rgba(216,64,64,.05)}}
+table.avf .wcanc{{font-weight:700;color:{theme.RED};text-transform:uppercase;font-size:10px;letter-spacing:.05em}}
+table.avf .wcancp{{color:{theme.RED};border:1px solid {theme.RED};border-radius:6px;padding:0 5px;font-size:9px;
+  font-weight:800;letter-spacing:.06em;margin-left:5px;vertical-align:middle}}
 table.avf tr.tot td{{border-top:2px solid {theme.HAIRLINE};font-weight:800;background:rgba(255,244,0,.08)}}
 table.avf .grp .ih,table.avf .sub th:first-child,table.avf tbody td:first-child{{border-left:2px solid {theme.MUTED}}}
 </style>"""
@@ -228,20 +232,23 @@ def avf_reg_table(df, meta):
         is_port = str(r.event).upper().startswith("PORTFOLIO")
         st_, dtr, ss_, opn_ = meta.get(r.event, ("selling", float("nan"), "selling", None))
         future = (not is_port) and ss_ == "future"          # not-yet-open edition (opens 2d before prior race)
+        cancelled = (not is_port) and (st_ == "cancelled" or ss_ == "cancelled")   # retain actuals, no pacing
         race_s = "—" if is_port else ((data.AS_OF + pd.to_timedelta(dtr, unit="D")).strftime("%-d %b")
                                       if pd.notna(dtr) else "—")
         opens_s = (pd.to_datetime(opn_).strftime("%-d %b") if opn_ is not None and pd.notna(opn_) else None)
         wks_s = ("—" if is_port
+                 else '<span class="wcanc">cancelled</span>' if cancelled
                  else f'<span class="wfut">opens {opens_s}</span>' if future and opens_s
                  else '<span class="wfut">not open</span>' if future
                  else (f"{dtr/7:.1f}" if pd.notna(dtr) else "—"))
         ef, ea, tf, ta = r.eolm_fcst, r.eolm_act, r.eotm_fcst, r.eotm_act
-        trend_td = ('<td class="m">—</td>' if (future or is_port)
+        trend_td = ('<td class="m">—</td>' if (future or cancelled or is_port)
                     else f'<td>{_trend_html(getattr(r, "trend", None), getattr(r, "wow_pct", float("nan")), bool(getattr(r, "is_launching", False)))}</td>')
-        if future:      # not selling yet — nothing to show
+        if future or cancelled:      # future = not selling yet; cancelled = show EOTM actual-to-date only
+            _eotm = _f_int(ta) if cancelled else "—"
             block_pre = ('<td class="eolmc">—</td><td class="eolmc">—</td><td class="eolmc">—</td>'
                          '<td class="curc">—</td><td class="curc">—</td><td class="curc">—</td>')
-            block_eotm = '<td class="eotmc">—</td><td class="eotmc num">—</td><td class="eotmc">—</td>'
+            block_eotm = f'<td class="eotmc">—</td><td class="eotmc num">{_eotm}</td><td class="eotmc">—</td>'
         else:
             mf, ma = (tf - ef), (ta - ea)
             gap = ma - mf
@@ -251,8 +258,9 @@ def avf_reg_table(df, meta):
             block_pre = (f'<td class="eolmc">{_f_int(ef)}</td><td class="eolmc num">{_f_int(ea)}</td><td class="eolmc">{es}</td>'
                          f'<td class="curc">{_f_int(mf)}</td><td class="curc">{_f_int(ma)}</td><td class="curc m">{gap_s}</td>')
             block_eotm = (f'<td class="eotmc">{_f_int(tf)}</td><td class="eotmc num">{_f_int(ta)}</td><td class="eotmc">{ts}</td>')
-        tr_cls = ' class="tot"' if is_port else (' class="future"' if future else '')
-        rows.append(f'<tr{tr_cls}><td class="intro ev">{r.event}</td><td class="intro">{race_s}</td>'
+        tr_cls = ' class="tot"' if is_port else (' class="canc"' if cancelled else ' class="future"' if future else '')
+        _evn = str(r.event) + ('<span class="wcancp">CANCELLED</span>' if cancelled else '')
+        rows.append(f'<tr{tr_cls}><td class="intro ev">{_evn}</td><td class="intro">{race_s}</td>'
                     f'<td class="intro">{wks_s}</td>'
                     f'{block_pre}{trend_td}{block_eotm}</tr>')
     st.markdown(_AVF_CSS + '<div class="avf-scroll"><table class="avf">' + _AVF_THEAD
