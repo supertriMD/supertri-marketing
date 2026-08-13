@@ -378,6 +378,57 @@ def corporate_challenge():
             em[cm] if len(em) else pd.DataFrame(columns=cm))
 
 
+# ── Clubs & Teams (walled COUNT-ONLY views — revenue-free) ──────────────────────────────────────
+# supertri_marketing.v_club_event omits est_net_revenue + currency; v_club_register has no revenue columns.
+# Defensive: return empty until chat 1 lands the walled views, so the tab shows "coming soon" not an error.
+_M_CLUB_EVENT = "`$P.supertri_marketing.v_club_event`"
+_M_CLUB_REGISTER = "`$P.supertri_marketing.v_club_register`"
+
+def club_kpis() -> dict:
+    """Count-only club KPIs (marketing): enrolled clubs · regs-via-codes (headline) · distinct discount codes ·
+    editions. NO revenue. Empty dict until the walled views exist."""
+    try:
+        r = D._q(f"SELECT COUNT(*) AS clubs, SUM(code_redemptions) AS code_regs FROM {_M_CLUB_REGISTER}").iloc[0]
+        codes = D._q(f"SELECT COUNT(DISTINCT TRIM(c)) AS n FROM {_M_CLUB_REGISTER}, UNNEST(SPLIT(discount_codes,',')) c "
+                     f"WHERE TRIM(c)!=''").iloc[0].n
+        ed = D._q(f"SELECT COUNT(DISTINCT event) AS editions FROM {_M_CLUB_EVENT}").iloc[0].editions
+        return dict(clubs=int(r.clubs), code_regs=int(r.code_regs or 0), codes=int(codes), editions=int(ed))
+    except Exception:
+        return {}
+
+def club_by_event() -> pd.DataFrame:
+    """Per event: [event, event_code, enrolled, selected, code] — NO revenue/currency."""
+    cols = ["event", "event_code", "enrolled", "selected", "code"]
+    try:
+        return D._q(f"""SELECT event, ANY_VALUE(event_code) AS event_code, COUNT(DISTINCT club_code) AS enrolled,
+                          SUM(selected_athletes) AS selected, SUM(code_redemptions) AS code
+                        FROM {_M_CLUB_EVENT} GROUP BY event ORDER BY code DESC""")[cols]
+    except Exception:
+        return pd.DataFrame(columns=cols)
+
+def club_register() -> pd.DataFrame:
+    """Per club: [club_code, club_label, entity_type, status_tier, events, members, selected, code]."""
+    cols = ["club_code", "club_label", "entity_type", "status_tier", "events", "members", "selected", "code"]
+    try:
+        return D._q(f"""SELECT club_code, club_label, entity_type, status_tier, events, members,
+                          selected_athletes AS selected, code_redemptions AS code
+                        FROM {_M_CLUB_REGISTER} ORDER BY code_redemptions DESC, selected_athletes DESC""")[cols]
+    except Exception:
+        return pd.DataFrame(columns=cols)
+
+def club_top3() -> pd.DataFrame:
+    """Top-3 clubs per event by code redemptions."""
+    cols = ["event", "event_code", "club_label", "entity_type", "members", "selected", "code", "rk"]
+    try:
+        return D._q(f"""SELECT event, event_code, club_label, entity_type, members, selected_athletes AS selected,
+                          code_redemptions AS code, rk FROM (
+                          SELECT *, ROW_NUMBER() OVER (PARTITION BY event ORDER BY code_redemptions DESC) AS rk
+                          FROM {_M_CLUB_EVENT})
+                        WHERE rk <= 3 AND code_redemptions > 0 ORDER BY event, rk""")[cols]
+    except Exception:
+        return pd.DataFrame(columns=cols)
+
+
 # ── Landing forecast (mirror of data.landing_forecast; walled reg-count views) ──────────────────
 def _landing_band(cur_mtr, actual_now, prior_at_now, prior_final, plan_final):
     """Race-day landing band from the ramp curve — mirror of data._landing_band. Returns

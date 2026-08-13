@@ -81,6 +81,7 @@ SECTIONS = [
     "Retention",
     "Cross-event Migration",
     "Corporate Challenge",
+    "Clubs & Teams",
 ]
 sec = st.sidebar.radio("View", SECTIONS, label_visibility="collapsed")
 st.sidebar.divider()
@@ -478,3 +479,92 @@ elif "Corporate" in sec:
         R.stacked_100_by_year(em[["year", "answer", "n"]], "Corporate entry type",
                               colors=R.CORP_ENTRY_COLORS, order=["Individual", "Relay", "Unspecified"],
                               years=md.CORP_YEARS)
+
+# ═════════════════════════════════════════════════════════════ CLUBS & TEAMS (revenue-free)
+elif "Clubs & Teams" in sec:
+    k = md.club_kpis()
+    be = md.club_by_event()
+    if not k or not len(be):
+        st.info("**Clubs & Teams** — coming soon. The revenue-free club views are being wired.")
+    else:
+        reg = md.club_register()
+        t3 = md.club_top3()
+        _disp = lambda ec: md.CODE_DISP.get(ec, ec)
+        R.cards_row([   # revenue-free: the board's revenue tile is swapped for discount codes
+            R.kpi("Enrolled clubs", f"{k['clubs']:,}", "", f"across {k['editions']} editions"),
+            R.kpi("Regs via codes", f"{k['code_regs']:,}", "", "the headline count"),
+            R.kpi("Discount codes", f"{k['codes']:,}", "", "live club codes"),
+        ])
+        _top = be.iloc[0]
+        R.insight(f"<b>Three overlapping lenses, not a funnel.</b> The headline is <b>registrations via a club's "
+                  f"discount code</b> — {k['code_regs']:,} across {k['editions']} editions and {k['codes']} codes. "
+                  f"<b>{_disp(_top.event_code)} leads</b> ({int(_top.code):,} code registrations). Roster ⊇ selected "
+                  f"⊇ code holds for a clean club — but a code doesn't require ticking the dropdown, so <b>code can "
+                  f"exceed selected</b>. <i>Selected undercounts</i> (optional, spelling-sensitive field).")
+
+        CLUB_CSS = f"""<style>
+        table.clb{{border-collapse:collapse;width:100%;font-size:12.5px;font-variant-numeric:tabular-nums;background:#fff;margin:2px 0 6px;border:1px solid {theme.HAIRLINE};border-radius:12px;overflow:hidden}}
+        table.clb th,table.clb td{{padding:7px 12px;text-align:right;white-space:nowrap;border-bottom:1px solid {theme.HAIRLINE}}}
+        table.clb th{{font-size:9.5px;text-transform:uppercase;letter-spacing:.04em;color:{theme.MUTED};font-weight:700;background:{theme.OFF_WHITE}}}
+        table.clb th.l,table.clb td.ev{{text-align:left}}
+        table.clb td.ev{{font-weight:700;color:{theme.INK}}}
+        table.clb td.hl{{font-weight:800;color:{theme.INK}}}
+        table.clb tr.top td{{background:rgba(255,244,0,.12)}}
+        .clbbar-wrap{{margin:4px 0}}
+        .clbbar{{height:22px;border-radius:5px;display:flex;align-items:center;padding:0 8px;color:#fff;font-weight:800;font-size:12px;white-space:nowrap;min-width:24px}}
+        .clbcards{{display:flex;flex-wrap:wrap;gap:10px;margin:2px 0}}
+        .clbcard{{flex:1 1 210px;border:1px solid {theme.HAIRLINE};border-radius:12px;padding:11px 14px;background:#fff}}
+        .clbcard h4{{margin:0 0 6px;font-size:12px;font-weight:800;color:{theme.INK}}}
+        .clbrow{{display:flex;justify-content:space-between;align-items:baseline;padding:3px 0;border-top:1px solid {theme.OFF_WHITE};gap:8px}}
+        .clbrow .nm{{font-weight:600;color:{theme.INK};font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:150px}}
+        .clbrow .big{{font-weight:800;color:{theme.INK}}}.clbrow .sub{{color:{theme.MUTED};font-size:11px}}
+        </style>"""
+
+        st.subheader("Clubs by event")
+        st.caption("Ranked by **registrations via code** (the headline) · **Selected** = ticked the club on the "
+                   "form (undercounts) · Chicago highlighted. Registrations only — no revenue data.")
+        _rows = "".join(
+            f'<tr class="{"top" if i == 0 else ""}"><td class="ev">{_disp(r.event_code)}</td>'
+            f'<td>{int(r.enrolled):,}</td><td>{int(r.selected):,}</td><td class="hl">{int(r.code):,}</td></tr>'
+            for i, r in enumerate(be.itertuples()))
+        st.markdown(CLUB_CSS + '<table class="clb"><thead><tr><th class="l">Event</th><th>Enrolled clubs</th>'
+                    '<th>Selected</th><th>Regs via code</th></tr></thead><tbody>' + _rows + '</tbody></table>',
+                    unsafe_allow_html=True)
+
+        if len(reg):
+            st.subheader("Three ways to count a club")
+            _types = ["All"] + sorted(x for x in reg.entity_type.dropna().unique() if str(x).strip())
+            _t = st.selectbox("Type", _types, index=0, key="mclb_type")
+            rsel = reg if _t == "All" else reg[reg.entity_type == _t]
+            if (rsel.code > 0).any():
+                rsel = rsel[rsel.code > 0]
+            if len(rsel):
+                _pick = st.selectbox("Club", list(rsel.club_label), index=0, key="mclb_pick")
+                cr = rsel[rsel.club_label == _pick].iloc[0]
+                _m, _s, _c = (0 if pd.isna(cr.members) else int(cr.members),
+                              0 if pd.isna(cr.selected) else int(cr.selected),
+                              0 if pd.isna(cr.code) else int(cr.code))
+                _mx = max(_m, _s, _c, 1)
+                _bar = lambda lab, val, col: (
+                    f'<div class="clbbar-wrap"><div style="font-size:11px;color:{theme.MUTED};margin-bottom:1px">{lab}</div>'
+                    f'<div class="clbbar" style="width:{max(100*val/_mx, 5):.0f}%;background:{col}">{val:,}</div></div>')
+                st.markdown(CLUB_CSS + _bar("Members (roster)", _m, theme.MUTED)
+                            + _bar("Selected (ticked the form)", _s, theme.ACCENT2)
+                            + _bar("Registered via code", _c, theme.INK), unsafe_allow_html=True)
+                st.caption(f"**{cr.club_label}** ({str(cr.entity_type).title()}) — **three overlapping lenses, not a "
+                           "strict funnel**. Roster ⊇ selected ⊇ code holds for a clean club, but a code can be used "
+                           "without ticking the dropdown, so *code sometimes exceeds selected*.")
+
+        if len(t3):
+            st.subheader("Top clubs per event")
+            st.caption("The three biggest clubs by **registrations via code** at each event · sub = roster size.")
+            _cards = []
+            for ec in [e for e in be.event_code if e in set(t3.event_code)]:
+                sub = t3[t3.event_code == ec]
+                body = "".join(
+                    f'<div class="clbrow"><span class="nm">{r.club_label}</span>'
+                    f'<span><span class="big">{int(r.code):,}</span> '
+                    f'<span class="sub">· {"—" if pd.isna(r.members) else int(r.members)} roster</span></span></div>'
+                    for r in sub.itertuples())
+                _cards.append(f'<div class="clbcard"><h4>{_disp(ec)}</h4>{body}</div>')
+            st.markdown(CLUB_CSS + '<div class="clbcards">' + "".join(_cards) + '</div>', unsafe_allow_html=True)
