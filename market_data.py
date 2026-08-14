@@ -378,6 +378,22 @@ def corporate_challenge():
             em[cm] if len(em) else pd.DataFrame(columns=cm))
 
 
+def corporate_participation() -> pd.DataFrame:
+    """Per event × year corporate participation + Individual/Relay % split (count-only, from the walled
+    v_registration_attributes). Mirrors the board — revenue-free. [event, event_code, year, corp, ind_pct, relay_pct]."""
+    cols = ["event", "event_code", "year", "corp", "ind_pct", "relay_pct"]
+    yrs = ",".join(str(y) for y in CORP_YEARS)
+    df = D._q(f"""SELECT lineage AS event, year, COUNT(*) corp,
+                    ROUND(100*COUNTIF(LOWER(cc_entry_type)='individual')/NULLIF(COUNT(*),0)) ind_pct,
+                    ROUND(100*COUNTIF(LOWER(cc_entry_type)='relay')/NULLIF(COUNT(*),0)) relay_pct
+                  FROM {_ATTR} WHERE corporate_challenge AND is_staff IS NOT TRUE AND year IN ({yrs})
+                    AND lineage IN {_ELIG_SQL} GROUP BY 1,2 HAVING corp>0""")
+    if not len(df):
+        return pd.DataFrame(columns=cols)
+    df["event_code"] = df.event.map({v: k for k, v in CODE_DISP.items()}).fillna(df.event)
+    return df[cols]
+
+
 # ── Clubs & Teams (walled COUNT-ONLY views — revenue-free) ──────────────────────────────────────
 # supertri_marketing.v_club_event omits est_net_revenue + currency; v_club_register has no revenue columns.
 # Defensive: return empty until chat 1 lands the walled views, so the tab shows "coming soon" not an error.

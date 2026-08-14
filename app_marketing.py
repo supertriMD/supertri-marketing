@@ -448,37 +448,51 @@ elif "Corporate" in sec:
                   f"(~{_lb_pct:.0f}% of its field, {_lb_n:,} athletes), while <b>Chicago is scaling</b> "
                   f"({_chi.get(2024, 0)}→{_chi.get(2025, 0)}→{_chi.get(2026, 0)} across 2024–26). Clear headroom to "
                   f"grow it at the other events.")
+        pp = md.corporate_participation()
         CC_CSS = f"""<style>
-        table.cc{{border-collapse:collapse;width:100%;font-size:12.5px;font-variant-numeric:tabular-nums;background:#fff;margin:2px 0 6px;border:1px solid {theme.HAIRLINE};border-radius:12px;overflow:hidden}}
-        table.cc th,table.cc td{{padding:7px 12px;text-align:right;white-space:nowrap;border-bottom:1px solid {theme.HAIRLINE}}}
-        table.cc th{{font-size:9.5px;text-transform:uppercase;letter-spacing:.04em;color:{theme.MUTED};font-weight:700;background:{theme.OFF_WHITE}}}
-        table.cc th.l,table.cc td.ev{{text-align:left}}
-        table.cc td.ev{{font-weight:700;color:{theme.INK}}}
-        table.cc tr.top td{{background:rgba(255,244,0,.12)}}
+        table.cc{{border-collapse:collapse;width:100%;font-size:12.5px;background:#fff;margin:2px 0 4px;border:1px solid {theme.HAIRLINE};border-radius:12px;overflow:hidden;table-layout:fixed}}
+        table.cc th,table.cc td{{padding:7px 10px;text-align:center;border-bottom:1px solid {theme.OFF_WHITE};vertical-align:top}}
+        table.cc th{{font-size:9.5px;text-transform:uppercase;letter-spacing:.04em;color:{theme.MUTED};font-weight:700;border-bottom:1px solid {theme.HAIRLINE}}}
+        table.cc th.l{{text-align:left;width:120px}} table.cc td.ev{{text-align:left;font-weight:700;color:{theme.INK};vertical-align:middle}}
+        table.cc tr.top td{{background:rgba(255,244,0,.10)}} table.cc tr.tot td{{border-top:2px solid {theme.INK};font-weight:800;background:{theme.OFF_WHITE}}}
+        .yc .yn{{font-size:15px;font-weight:800;line-height:1;color:{theme.INK}}}
+        .yc .s2{{height:8px;border-radius:3px;overflow:hidden;display:flex;background:{theme.OFF_WHITE};margin:4px 0 1px}}
+        .yc .si{{background:{theme.ACCENT2};height:100%}} .yc .sr{{background:#3a3f45;height:100%}}
+        .yc .sl{{font-size:9px;color:{theme.MUTED}}} .ycd{{color:{theme.MUTED}}}
+        .ckey{{display:flex;gap:14px;font-size:10.5px;color:{theme.MUTED};margin:6px 0 2px}}
+        .csw{{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px}} .csw.i{{background:{theme.ACCENT2}}} .csw.r{{background:#3a3f45}}
         </style>"""
         st.subheader("Corporate participation by event")
-        st.caption("Registrations in the Corporate Challenge and their share of each event's field · **Long Beach "
-                   "highlighted** (the flagship) · Supertri staff excluded.")
-        piv = be.pivot_table(index="event", columns="year", values="corp", fill_value=0).astype(int)
-        pivp = be.pivot_table(index="event", columns="year", values="corp_pct", fill_value=0.0)
-        _oc = _yr if _yr in piv.columns else piv.columns[-1]
-        piv = piv.sort_values(_oc, ascending=False)
-        yrs = list(piv.columns)
-
-        def _cc(ev, y):
-            if y not in piv.columns or piv.loc[ev, y] == 0:
-                return "—"
-            return f'{int(piv.loc[ev, y]):,} <span style="color:{theme.MUTED}">({pivp.loc[ev, y]:.1f}%)</span>'
-        rws = "".join(f'<tr class="{"top" if ev == "Long Beach" else ""}"><td class="ev">{ev}</td>'
-                      + "".join(f"<td>{_cc(ev, y)}</td>" for y in yrs) + "</tr>" for ev in piv.index)
-        st.markdown(CC_CSS + '<table class="cc"><thead><tr><th class="l">Event</th>'
-                    + "".join(f"<th>{int(y)}</th>" for y in yrs) + "</tr></thead><tbody>" + rws + "</tbody></table>",
-                    unsafe_allow_html=True)
-
-        st.subheader("Entry type — Individual vs Relay")
-        R.stacked_100_by_year(em[["year", "answer", "n"]], "Corporate entry type",
-                              colors=R.CORP_ENTRY_COLORS, order=["Individual", "Relay", "Unspecified"],
-                              years=md.CORP_YEARS)
+        st.caption("Live registration counts with the **Individual / Relay** split per year · Long Beach highlighted · staff excluded.")
+        if len(pp):
+            def _yc(n, ind, relay):
+                ind = 0 if pd.isna(ind) else int(ind); relay = 0 if pd.isna(relay) else int(relay)
+                return (f'<div class="yc"><div class="yn">{n:,}</div><div class="s2"><span class="si" style="width:{ind}%">'
+                        f'</span><span class="sr" style="width:{relay}%"></span></div><div class="sl">{ind} / {relay}</div></div>')
+            pm = {(r.event, int(r.year)): r for r in pp.itertuples()}
+            _last = pp[pp.year == md.CORP_YEARS[-1]].set_index("event").corp
+            events = sorted(pp.event.unique(), key=lambda e: -int(_last.get(e, 0)))
+            def _cell(ev, y):
+                r = pm.get((ev, y))
+                return f'<td>{_yc(int(r.corp), r.ind_pct, r.relay_pct)}</td>' if r is not None else '<td><span class="ycd">—</span></td>'
+            rows = ""
+            for ev in events:
+                rows += (f'<tr class="{"top" if ev == "Long Beach" else ""}"><td class="ev">{ev}</td>'
+                         + "".join(_cell(ev, y) for y in md.CORP_YEARS) + "</tr>")
+            pcells = ""
+            for y in md.CORP_YEARS:
+                sub = pp[pp.year == y]; tot = int(sub.corp.sum())
+                if tot:
+                    ip = round(100 * (sub.corp * sub.ind_pct / 100).sum() / tot)
+                    rp = round(100 * (sub.corp * sub.relay_pct / 100).sum() / tot)
+                    pcells += f'<td>{_yc(tot, ip, rp)}</td>'
+                else:
+                    pcells += '<td><span class="ycd">—</span></td>'
+            rows += f'<tr class="tot"><td class="ev">PORTFOLIO</td>{pcells}</tr>'
+            st.markdown(CC_CSS + '<table class="cc"><thead><tr><th class="l">Event</th>'
+                        + "".join(f"<th>{y}</th>" for y in md.CORP_YEARS) + "</tr></thead><tbody>" + rows + "</tbody></table>"
+                        + '<div class="ckey"><span><i class="csw i"></i>Individual</span><span><i class="csw r"></i>Relay</span></div>',
+                        unsafe_allow_html=True)
 
 # ═════════════════════════════════════════════════════════════ CLUBS & TEAMS (revenue-free)
 elif "Clubs & Teams" in sec:
