@@ -444,6 +444,18 @@ def club_top3() -> pd.DataFrame:
     except Exception:
         return pd.DataFrame(columns=cols)
 
+def club_participation() -> pd.DataFrame:
+    """ALL athlete-declared clubs from the walled supertri_marketing.v_club_participation (count-only,
+    revenue-free), aggregated to portfolio club grain. Defensive: empty until the walled view resolves."""
+    cols = ["club", "club_code", "in_register", "athletes", "registrations", "events"]
+    try:
+        return D._q("""SELECT club, ANY_VALUE(club_code) club_code, LOGICAL_OR(in_register) in_register,
+                         SUM(athletes) athletes, SUM(registrations) registrations, COUNT(DISTINCT event) events
+                       FROM `$P.supertri_marketing.v_club_participation`
+                       GROUP BY club ORDER BY athletes DESC, registrations DESC""")[cols]
+    except Exception:
+        return pd.DataFrame(columns=cols)
+
 
 # ── Landing forecast (mirror of data.landing_forecast; walled reg-count views) ──────────────────
 def _landing_band(cur_mtr, actual_now, prior_at_now, prior_final, plan_final):

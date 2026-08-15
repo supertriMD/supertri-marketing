@@ -582,3 +582,31 @@ elif "Clubs & Teams" in sec:
                     for r in sub.itertuples())
                 _cards.append(f'<div class="clbcard"><h4>{_disp(ec)}</h4>{body}</div>')
             st.markdown(CLUB_CSS + '<div class="clbcards">' + "".join(_cards) + '</div>', unsafe_allow_html=True)
+
+        st.subheader("All athlete-declared clubs")
+        cp = md.club_participation()
+        if len(cp):
+            _tot = len(cp); _inreg = int(cp.in_register.sum()); _notreg = _tot - _inreg
+            R.cards_row([
+                R.kpi("Clubs declared", f"{_tot:,}", "", "athlete-entered · canonical"),
+                R.kpi("Formal partners", f"{_inreg:,}", "", "in the register"),
+                R.kpi("Not yet partnered", f"{_notreg:,}", "", "acquisition whitespace")])
+            _big = cp[~cp.in_register].head(3)
+            if len(_big):
+                _nm = ", ".join(f"{r.club} ({int(r.athletes)})" for r in _big.itertuples())
+                R.insight(f"<b>{_notreg:,} of {_tot:,} declared clubs aren't formal partners yet.</b> The biggest "
+                          f"un-partnered — {_nm} — are the clearest acquisition targets: athletes already organise "
+                          f"around them, they're just not in the programme.")
+            _only = st.checkbox("Show only clubs not yet in the register (targets)", key="mclb_all_targets")
+            _show = cp[~cp.in_register] if _only else cp
+            _reg_chip = f'<span style="color:{theme.GREEN};font-weight:700;font-size:10px">✓ partner</span>'
+            _tgt_chip = f'<span style="color:{theme.AMBER};font-weight:700;font-size:10px">target</span>'
+            _rows = "".join(
+                f'<tr><td class="ev">{r.club}</td><td>{_reg_chip if r.in_register else _tgt_chip}</td>'
+                f'<td class="hl">{int(r.athletes):,}</td><td>{int(r.registrations):,}</td><td>{int(r.events)}</td></tr>'
+                for r in _show.head(25).itertuples())
+            st.markdown(CLUB_CSS + '<table class="clb"><thead><tr><th class="l">Club</th><th>Status</th>'
+                        '<th>Athletes</th><th>Registrations</th><th>Events</th></tr></thead><tbody>'
+                        + _rows + '</tbody></table>', unsafe_allow_html=True)
+            st.caption(f"Top {min(25, len(_show))} of {len(_show):,} by athletes · canonical names (club_alias dedup) · "
+                       "registrations only, no revenue.")
