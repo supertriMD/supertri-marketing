@@ -17,14 +17,15 @@ PROJECT, LOCATION = "supertri-reg-analytics", "EU"
 # event code → display name, currency, canonical key, and board ordering
 CODE_DISP = {"AUS": "Austin", "BLE": "Blenheim", "LB": "Long Beach", "NJ": "New Jersey",
              "TOR": "Toronto", "TOR_10K": "Toronto 10K", "CHI": "Chicago",
-             "KER": "Kerrville", "TOU": "Toulouse"}
+             "KER": "Kerrville", "TOU": "Toulouse", "BRI": "Brighton"}
 CCY = {"Austin": "USD", "Blenheim": "GBP", "Long Beach": "USD", "New Jersey": "USD",
        "Toronto": "CAD", "Toronto 10K": "CAD", "Chicago": "USD", "Kerrville": "USD",
-       "Toulouse": "EUR"}
+       "Toulouse": "EUR", "Brighton": "GBP"}
 _CANON = {"Austin": "austin", "Blenheim": "blenheim", "Long Beach": "long_beach",
           "New Jersey": "new_jersey", "Toronto": "toronto", "Toronto 10K": "toronto_10k",
-          "Chicago": "chicago", "Kerrville": "kerrville", "Toulouse": "toulouse", "PORTFOLIO": "ALL_EVENTS"}
-_EVENT_ORDER = ["Austin", "Blenheim", "Long Beach", "New Jersey", "Toronto", "Toronto 10K",
+          "Chicago": "chicago", "Kerrville": "kerrville", "Toulouse": "toulouse",
+          "Brighton": "brighton", "PORTFOLIO": "ALL_EVENTS"}
+_EVENT_ORDER = ["Austin", "Blenheim", "Brighton", "Long Beach", "New Jersey", "Toronto", "Toronto 10K",
                 "Chicago", "Kerrville", "Toulouse"]
 
 # ── BigQuery access ──────────────────────────────────────────────────────────
