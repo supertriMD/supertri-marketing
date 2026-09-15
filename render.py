@@ -215,11 +215,17 @@ table.avf .grp .ih,table.avf .sub th:first-child,table.avf tbody td:first-child{
 _TREND_TIP = ("Registration momentum — the last 3 weeks vs the prior 3 weeks: (3wk − prior 3wk) ÷ prior 3wk. "
               "▲ rising (>+5%) · ▼ softening (<−5%) · ▬ flat. Not a single week-over-week; completed / "
               "not-yet-open editions show none.")
+_TWTIP = ("Registrations in the TRAILING 7 DAYS ending today (the daily as-of) — a rolling window, NOT a "
+          "calendar week and not week-to-date; it slides every day. Selling editions only.")
+_PATIP = ("Average registrations per week over the PREVIOUS 14 DAYS (the fortnight ending 7 days ago) — the "
+          "recent baseline for the Last-7d figure (= (trailing-21d − trailing-7d) ÷ 2). Selling editions only.")
 _AVF_THEAD = (f'<thead><tr class="grp"><th class="ih" colspan="3">Edition</th>'
               f'<th class="eolmh" colspan="3">EOLM</th><th class="curh" colspan="3">Current</th>'
+              f'<th title="{_PATIP}">Prev&nbsp;14d&nbsp;avg</th><th title="{_TWTIP}">Last&nbsp;7d</th>'
               f'<th title="{_TREND_TIP}">Trend</th><th class="eotmh" colspan="3">EOTM</th></tr>'
               f'<tr class="sub"><th>Event</th><th>Race&nbsp;day</th><th>Wks</th>'
               f'<th>Forecast</th><th>Actual</th><th>%</th><th>Forecast</th><th>Actual</th><th>GAP</th>'
+              f'<th title="{_PATIP}">Prev&nbsp;14d&nbsp;avg</th><th title="{_TWTIP}">Last&nbsp;7d</th>'
               f'<th title="{_TREND_TIP}">Trend</th><th>Forecast</th><th>Actual</th><th>%</th></tr></thead>')
 
 
@@ -244,6 +250,11 @@ def avf_reg_table(df, meta):
         ef, ea, tf, ta = r.eolm_fcst, r.eolm_act, r.eotm_fcst, r.eotm_act
         trend_td = ('<td class="m">—</td>' if (future or cancelled or is_port)
                     else f'<td>{_trend_html(getattr(r, "trend", None), getattr(r, "wow_pct", float("nan")), bool(getattr(r, "is_launching", False)))}</td>')
+        # recent run-rate (reg only): Prev 14d avg + Last 7d. Portfolio shows its summed value; future/
+        # cancelled/absent → '—'. (Trailing rolling windows on the daily as-of, not calendar weeks.)
+        _pa, _l7 = getattr(r, "prev14avg", float("nan")), getattr(r, "last7d", float("nan"))
+        pa_td = '<td class="m">—</td>' if (future or cancelled or pd.isna(_pa)) else f'<td class="m">{_f_int(_pa)}</td>'
+        tw_td = '<td class="m">—</td>' if (future or cancelled or pd.isna(_l7)) else f'<td class="num">{_f_int(_l7)}</td>'
         if future or cancelled:      # future = not selling yet; cancelled = show EOTM actual-to-date only
             _eotm = _f_int(ta) if cancelled else "—"
             block_pre = ('<td class="eolmc">—</td><td class="eolmc">—</td><td class="eolmc">—</td>'
@@ -262,7 +273,7 @@ def avf_reg_table(df, meta):
         _evn = str(r.event) + ('<span class="wcancp">CANCELLED</span>' if cancelled else '')
         rows.append(f'<tr{tr_cls}><td class="intro ev">{_evn}</td><td class="intro">{race_s}</td>'
                     f'<td class="intro">{wks_s}</td>'
-                    f'{block_pre}{trend_td}{block_eotm}</tr>')
+                    f'{block_pre}{pa_td}{tw_td}{trend_td}{block_eotm}</tr>')
     st.markdown(_AVF_CSS + '<div class="avf-scroll"><table class="avf">' + _AVF_THEAD
                 + "<tbody>" + "".join(rows) + "</tbody></table></div>", unsafe_allow_html=True)
 

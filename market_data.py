@@ -148,14 +148,16 @@ def weekly_reg(season: int):
                    CAST(reg_eolm_act AS FLOAT64) AS reg_eolm_act,
                    CAST(reg_thismonth_fcst AS FLOAT64) AS reg_thismonth_fcst,
                    CAST(reg_thismonth_act AS FLOAT64) AS reg_thismonth_act,
-                   reg_trend, CAST(reg_wow_pct AS FLOAT64) AS reg_wow_pct, is_launching
+                   reg_trend, CAST(reg_wow_pct AS FLOAT64) AS reg_wow_pct, is_launching,
+                   CAST(reg_this_week AS FLOAT64) AS reg_this_week,
+                   CAST(reg_3wk_total AS FLOAT64) AS reg_3wk_total
                  FROM `$P.supertri_marketing.v_reg_pacing` WHERE edition_year={season}""")
     yb = year_book_reg(season)
     # meta carries sell_state + opens for the future/not-yet-open display ("OPENS <date>"), from v_reg_year_book.
     meta = {r.event: (r.status, r.days_to_race, r.sell_state, r.opens) for r in yb.itertuples()}
     if not len(p):
-        return pd.DataFrame(columns=["event", "total_target", "eolm_fcst", "eolm_act",
-                                     "eotm_fcst", "eotm_act", "trend", "wow_pct", "is_launching"]), meta
+        return pd.DataFrame(columns=["event", "total_target", "eolm_fcst", "eolm_act", "eotm_fcst",
+                                     "eotm_act", "trend", "wow_pct", "is_launching", "last7d", "prev14avg"]), meta
     reg = pd.DataFrame({
         "event": p.event_code.map(CODE_DISP),
         "total_target": p.reg_target,
@@ -165,7 +167,10 @@ def weekly_reg(season: int):
         "eotm_act": p.reg_eolm_act + p.reg_thismonth_act,
         "trend": p.reg_trend,
         "wow_pct": pd.to_numeric(p.reg_wow_pct, errors="coerce") * 100,   # fraction → percent for display
-        "is_launching": p.is_launching.fillna(False).astype(bool)})   # B19: render '🚀 Launching' on these
+        "is_launching": p.is_launching.fillna(False).astype(bool),   # B19: render '🚀 Launching' on these
+        # recent run-rate (reg counts, trailing/rolling daily as-of): Last 7d + Prev 14d avg (days 8–21 mean)
+        "last7d": p.reg_this_week,
+        "prev14avg": (p.reg_3wk_total - p.reg_this_week) / 2.0})
     reg = D._order_events(reg)
     # board parity: fill the just-opened 2027 presale editions' actuals (LB/NJ/TOR/TOR_10K)
     if season == LIVE_CYCLE:
@@ -182,7 +187,8 @@ def weekly_reg(season: int):
             reg = D._order_events(pd.concat([reg, pd.DataFrame({
                 "event": cyb.event.values, "total_target": np.nan, "eolm_fcst": np.nan,
                 "eolm_act": ra.values, "eotm_fcst": np.nan, "eotm_act": ra.values,
-                "trend": None, "wow_pct": np.nan, "is_launching": False})], ignore_index=True))
+                "trend": None, "wow_pct": np.nan, "is_launching": False,
+                "last7d": np.nan, "prev14avg": np.nan})], ignore_index=True))
     # Manual-override hook (CANCELLED_EDITIONS, empty by default): if a cancelled edition is STILL in the
     # pacing frame (warehouse not caught up), keep eolm/eotm ACT but NULL forecast + plan so the PORTFOLIO
     # sum drops its plan while retaining actuals.
@@ -195,7 +201,7 @@ def weekly_reg(season: int):
         reg.loc[m, "wow_pct"] = np.nan
         reg.loc[m, "is_launching"] = False
     port = {"event": "PORTFOLIO", "trend": None, "wow_pct": np.nan, "is_launching": False}
-    for c in ("total_target", "eolm_fcst", "eolm_act", "eotm_fcst", "eotm_act"):
+    for c in ("total_target", "eolm_fcst", "eolm_act", "eotm_fcst", "eotm_act", "last7d", "prev14avg"):
         port[c] = pd.to_numeric(reg[c], errors="coerce").sum(min_count=1)
     return pd.concat([reg, pd.DataFrame([port])], ignore_index=True), meta
 
