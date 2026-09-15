@@ -212,9 +212,9 @@ table.avf tr.tot td{{border-top:2px solid {theme.HAIRLINE};font-weight:800;backg
 table.avf .grp .ih,table.avf .sub th:first-child,table.avf tbody td:first-child{{border-left:2px solid {theme.MUTED}}}
 </style>"""
 
-_TREND_TIP = ("Registration momentum — the last 3 weeks vs the prior 3 weeks: (3wk − prior 3wk) ÷ prior 3wk. "
-              "▲ rising (>+5%) · ▼ softening (<−5%) · ▬ flat. Not a single week-over-week; completed / "
-              "not-yet-open editions show none.")
+_TREND_TIP = ("Registration momentum — Last 7d vs the Prev 14d avg (the two columns to its left): "
+              "(last 7d − prev 14d avg) ÷ prev 14d avg. ▲ rising (>+5%) · ▼ softening (<−5%) · ▬ flat. "
+              "Just-launched editions show 'Launching' (surge-distorted); completed / not-yet-open show none.")
 _TWTIP = ("Registrations in the TRAILING 7 DAYS ending today (the daily as-of) — a rolling window, NOT a "
           "calendar week and not week-to-date; it slides every day. Selling editions only.")
 _PATIP = ("Average registrations per week over the PREVIOUS 14 DAYS (the fortnight ending 7 days ago) — the "
@@ -248,11 +248,21 @@ def avf_reg_table(df, meta):
                  else '<span class="wfut">not open</span>' if future
                  else (f"{dtr/7:.1f}" if pd.notna(dtr) else "—"))
         ef, ea, tf, ta = r.eolm_fcst, r.eolm_act, r.eotm_fcst, r.eotm_act
-        trend_td = ('<td class="m">—</td>' if (future or cancelled or is_port)
-                    else f'<td>{_trend_html(getattr(r, "trend", None), getattr(r, "wow_pct", float("nan")), bool(getattr(r, "is_launching", False)))}</td>')
-        # recent run-rate (reg only): Prev 14d avg + Last 7d. Portfolio shows its summed value; future/
-        # cancelled/absent → '—'. (Trailing rolling windows on the daily as-of, not calendar weeks.)
+        # recent run-rate (reg only): Prev 14d avg + Last 7d (trailing rolling windows on the daily as-of, not
+        # calendar weeks). Portfolio shows its summed value; future/cancelled/absent → '—'.
         _pa, _l7 = getattr(r, "prev14avg", float("nan")), getattr(r, "last7d", float("nan"))
+        # Trend = Last-7d vs Prev-14d-avg momentum: (last7d − prev14avg) ÷ prev14avg, ±5% — so the arrow reads
+        # off the two columns beside it. Launch editions keep the launch-spike suppression; future/cancelled/
+        # portfolio show '—'.
+        if future or cancelled or is_port:
+            trend_td = '<td class="m">—</td>'
+        elif bool(getattr(r, "is_launching", False)):
+            trend_td = f'<td>{_trend_html(None, float("nan"), True)}</td>'
+        elif pd.notna(_pa) and _pa and pd.notna(_l7):
+            _m = _l7 / _pa - 1
+            trend_td = f'<td>{_trend_html("UP" if _m > 0.05 else "DOWN" if _m < -0.05 else "FLAT", _m * 100)}</td>'
+        else:
+            trend_td = '<td class="m">—</td>'
         pa_td = '<td class="m">—</td>' if (future or cancelled or pd.isna(_pa)) else f'<td class="m">{_f_int(_pa)}</td>'
         tw_td = '<td class="m">—</td>' if (future or cancelled or pd.isna(_l7)) else f'<td class="num">{_f_int(_l7)}</td>'
         if future or cancelled:      # future = not selling yet; cancelled = show EOTM actual-to-date only
