@@ -149,6 +149,7 @@ def weekly_reg(season: int):
                    CAST(reg_thismonth_fcst AS FLOAT64) AS reg_thismonth_fcst,
                    CAST(reg_thismonth_act AS FLOAT64) AS reg_thismonth_act,
                    reg_trend, CAST(reg_wow_pct AS FLOAT64) AS reg_wow_pct, is_launching,
+                   CAST(weeks_since_launch AS FLOAT64) AS weeks_since_launch,
                    CAST(reg_this_week AS FLOAT64) AS reg_this_week,
                    CAST(reg_3wk_total AS FLOAT64) AS reg_3wk_total
                  FROM `$P.supertri_marketing.v_reg_pacing` WHERE edition_year={season}""")
@@ -167,7 +168,13 @@ def weekly_reg(season: int):
         "eotm_act": p.reg_eolm_act + p.reg_thismonth_act,
         "trend": p.reg_trend,
         "wow_pct": pd.to_numeric(p.reg_wow_pct, errors="coerce") * 100,   # fraction → percent for display
-        "is_launching": p.is_launching.fillna(False).astype(bool),   # B19: render '🚀 Launching' on these
+        # 'Launching' suppresses the Trend arrow while the launch surge can still contaminate the Prev-14d-avg
+        # window — < 5 weeks since launch (that window reaches 21 days back + a ~2-week surge = 35 days). Prefer
+        # the live launch age; fall back to the view's is_launching (8-week, old 3wk-vs-prior-3wk basis) when the
+        # age is null. (Was the raw view flag until the Trend basis moved to Last-7d vs Prev-14d-avg.)
+        "is_launching": (pd.to_numeric(p.weeks_since_launch, errors="coerce") < 5).where(
+            pd.to_numeric(p.weeks_since_launch, errors="coerce").notna(),
+            p.is_launching.fillna(False).astype(bool)),
         # recent run-rate (reg counts, trailing/rolling daily as-of): Last 7d + Prev 14d avg (days 8–21 mean)
         "last7d": p.reg_this_week,
         "prev14avg": (p.reg_3wk_total - p.reg_this_week) / 2.0})
