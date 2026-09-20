@@ -179,9 +179,7 @@ elif "Landing forecast" in sec:
         if _np_n:
             cards.append(R.kpi("No prior curve", f"{_np_n}", "", "first-year event — plan-only"))
         R.cards_row(cards)
-        R.insight("Projected race-day participants for <b>ordering</b> — every currently-selling edition, next race "
-                  "first. Data-driven (registration curve + prior-year shape), <b>not</b> the plan. Reliable ~3–6 "
-                  "months out; directional before that. Expected = central; band = low–high.")
+        R.insight("Reliable ~3–6 months out; directional before that. Expected = central; band = low–high.")
 
         _sc = max(9500.0, float(lf.high.max()) * 1.05) if lf.high.notna().any() else 9500.0
         _pct = lambda v: max(0.0, min(100.0, 100.0 * float(v) / _sc))
