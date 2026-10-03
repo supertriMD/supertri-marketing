@@ -306,12 +306,19 @@ table.cr tr.tot td{{border-top:2px solid {theme.HAIRLINE};font-weight:800;backgr
 def completed_reg_table(yb_done):
     """Completed editions (reg-only) — Plan → Final → % (soft pill), per edition + PORTFOLIO. `yb_done` has
     event, reg_target, reg_act (from market_data.year_book_reg, status=='completed')."""
+    _CB = (f'<span style="color:{theme.RED};border:1px solid {theme.RED};border-radius:6px;padding:0 5px;'
+           f'font-size:9px;font-weight:700;letter-spacing:.05em;margin-left:5px">CANCELLED</span>')
     T = {"t": 0.0, "a": 0.0}
     rws = []
     for r in yb_done.sort_values("days_to_race", ascending=False).itertuples():
+        _canc = getattr(r, "status", None) == "cancelled" or getattr(r, "sell_state", None) == "cancelled"
         t, a = pd.to_numeric(r.reg_target, errors="coerce"), pd.to_numeric(r.reg_act, errors="coerce")
-        rws.append(f'<tr><td class="ev">{r.event}</td><td class="regc">{_f_int(t)}</td>'
-                   f'<td class="regc num">{_f_int(a)}</td><td class="regc">{softpill(a / t if (pd.notna(t) and t) else None)}</td></tr>')
+        rws.append(f'<tr><td class="ev">{r.event}{_CB if _canc else ""}</td>'
+                   f'<td class="regc">{"—" if _canc else _f_int(t)}</td>'
+                   f'<td class="regc num">{_f_int(a)}</td>'
+                   f'<td class="regc">{"—" if _canc else softpill(a / t if (pd.notna(t) and t) else None)}</td></tr>')
+        if _canc:
+            continue   # no plan to pace to → keep cancelled out of the PORTFOLIO subtotal
         if pd.notna(t): T["t"] += t
         if pd.notna(a): T["a"] += a
     tot = (f'<tr class="tot"><td class="ev">PORTFOLIO</td><td class="regc">{_f_int(T["t"])}</td>'

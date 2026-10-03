@@ -150,11 +150,14 @@ if "Reg vs Plan" in sec:
                   f"{reg_gap:+.0%} vs Forecast" if pd.notna(reg_gap) else ""),
             R.kpi("Registrations to date", f"{tot_a:,.0f}", f"{tot_a/tot_t:.0%} of target" if tot_t else ""),
         ])
-        yb_done = yb[yb.event.isin(done_ev)]   # same set as the KPI (sell_state='passed'), board-consistent
+        # cancelled editions are done, not selling → show them in Events Completed (labelled), not the selling
+        # grid. KPI done_ev above is left as passed-only (cancelled already excluded there via canc_ev).
+        done_split = done_ev | canc_ev
+        yb_done = yb[yb.event.isin(done_split)]
         if len(yb_done):
             st.subheader("Events Completed")
             R.completed_reg_table(yb_done)
-        reg_sell = _refit_reg(reg, done_ev)
+        reg_sell = _refit_reg(reg, done_split)
         if len(reg_sell[~reg_sell.event.str.upper().str.startswith("PORTFOLIO")]):
             st.subheader("Events Selling")
             R.avf_reg_table(reg_sell, meta)
