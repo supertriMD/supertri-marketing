@@ -21,6 +21,12 @@ import market_data as md
 import render as R
 import theme
 
+# AS_OF is computed once at import (in data.py, then copied into market_data); on a long-running deployed
+# process that freezes the ramp/landing "today". Re-read the live reporting_week on every rerun (the query is
+# cached, so it's cheap) and refresh BOTH module copies, so the charts track the daily courier.
+data.AS_OF = data._reporting_week()
+md.AS_OF = data.AS_OF
+
 _ASSETS = os.path.join(os.path.dirname(__file__), "assets")
 
 
